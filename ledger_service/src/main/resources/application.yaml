@@ -15,7 +15,8 @@ spring:
       auto-index-creation: ${MONGODB_AUTO_INDEX_CREATION}
   mongodb:
     uri: ${MONGODB_URI}
-
+server:
+  port: 5555
 management:
   endpoints:
     web:

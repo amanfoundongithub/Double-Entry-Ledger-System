@@ -1,0 +1,145 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <h2>Chart of Accounts</h2>
+      <p class="subtitle">Manage ledger accounts, normal balances, and cash flow classifications.</p>
+    </div>
+    <div class="filter-bar">
+      <button
+        type="button"
+        [class.active]="selectedType() === 'ALL'"
+        (click)="selectedType.set('ALL')"
+      >
+        All
+      </button>
+      @for (type of accountTypes; track type) {
+        <button
+          type="button"
+          [class.active]="selectedType() === type"
+          (click)="selectedType.set(type)"
+        >
+          {{ type }}
+        </button>
+      }
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h3>New Account</h3>
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="account-form">
+        <div class="row">
+          <label>
+            Code
+            <input type="text" formControlName="code" placeholder="1010" />
+          </label>
+          <label>
+            Currency
+            <input type="text" formControlName="currency" maxlength="3" />
+          </label>
+        </div>
+
+        <label>
+          Account Name
+          <input type="text" formControlName="name" placeholder="Operating Bank Account" />
+        </label>
+
+        <div class="row">
+          <label>
+            Account Type
+            <select formControlName="type">
+              @for (type of accountTypes; track type) {
+                <option [value]="type">{{ type }}</option>
+              }
+            </select>
+          </label>
+
+          <label>
+            Normal Side
+            <select formControlName="normalSide">
+              <option value="DEBIT">DEBIT</option>
+              <option value="CREDIT">CREDIT</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
+            Cash Flow Category
+            <select formControlName="cashFlowCategory">
+              @for (cat of cashFlowCategories; track cat) {
+                <option [value]="cat">{{ cat }}</option>
+              }
+            </select>
+          </label>
+
+          <label>
+            Description (Optional)
+            <input
+              type="text"
+              formControlName="description"
+              placeholder="Optional account notes or purpose"
+            />
+          </label>
+        </div>
+
+        <div class="flags">
+          <label class="checkbox">
+            <input type="checkbox" formControlName="cashEquivalent" />
+            Cash Equivalent
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" formControlName="contra" />
+            Contra Account
+          </label>
+        </div>
+
+        <button type="submit" class="primary-btn" [disabled]="submitting()">
+          {{ submitting() ? 'Saving...' : 'Create Account' }}
+        </button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Accounts ({{ filteredAccounts().length }})</h3>
+      @if (loading()) {
+        <p class="muted">Loading accounts...</p>
+      } @else if (filteredAccounts().length === 0) {
+        <p class="muted">No accounts match this filter yet.</p>
+      } @else {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Normal</th>
+              <th>Cash Flow</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (acc of filteredAccounts(); track acc.id) {
+              <tr>
+                <td class="mono">{{ acc.code }}</td>
+                <td>
+                  {{ acc.name }}
+                  @if (acc.contra) {
+                    <span class="tag">CONTRA</span>
+                  }
+                  @if (acc.cashEquivalent) {
+                    <span class="tag">CASH EQ</span>
+                  }
+                </td>
+                <td>{{ acc.type }}</td>
+                <td class="mono">{{ acc.normalSide }}</td>
+                <td>{{ acc.cashFlowCategory }}</td>
+                <td>{{ acc.active ? 'ACTIVE' : 'INACTIVE' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  </div>
+</section>

@@ -11,9 +11,10 @@ export interface Account {
   type: AccountType;
   normalSide: NormalSide;
   cashFlowCategory: CashFlowCategory;
-  cashEquivalent: boolean;
-  contraAccount: boolean;
+  cashEquivalent?: boolean;
+  contra?: boolean;
   currency: string;
+  description?: string | null;
   active: boolean;
   parentAccountId?: string | null;
 }
@@ -24,10 +25,11 @@ export interface CreateAccountRequest {
   type: AccountType;
   normalSide: NormalSide;
   cashFlowCategory: CashFlowCategory;
-  cashEquivalent: boolean;
-  contraAccount: boolean;
+  cashEquivalent?: boolean;
+  contra?: boolean;                 // Match backend Java record field
   currency: string;
-  parentAccountId?: string | null;
+  description?: string | null;      // Match backend Java record field
+  parentAccountId?: string | null;  // Keep optional if backend entity supports it later
 }
 
 export interface JournalLineResponse {
@@ -107,15 +109,18 @@ export interface TrialBalanceLine {
   accountCode: string;
   accountName: string;
   accountType: AccountType;
-  debitBalance: string;
-  creditBalance: string;
+  normalSide: NormalSide;
+  contra?: boolean;
+  totalDebits: number | string;
+  totalCredits: number | string;
+  netBalance: number | string;
 }
 
 export interface TrialBalanceResponse {
   asOfDate: string;
-  lines: TrialBalanceLine[];
-  totalDebits: string;
-  totalCredits: string;
+  rows: TrialBalanceLine[];
+  totalDebits: number | string;
+  totalCredits: number | string;
   balanced: boolean;
 }
 
@@ -141,7 +146,7 @@ export interface BalanceSheetResponse {
   asOfDate: string;
   assets: StatementAccountLine[];
   liabilities: StatementAccountLine[];
-  equityAccounts: StatementAccountLine[];
+  equity: StatementAccountLine[];
   totalAssets: string;
   totalLiabilities: string;
   cumulativeUnclosedNetIncome: string;

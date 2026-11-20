@@ -23,23 +23,19 @@ public class CorrelationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            FilterChain filterChain
-    ) throws ServletException, IOException {
-        String incomingId = request.getHeader(CorrelationContext.HEADER_NAME);
-        String resolvedId = (incomingId != null && !incomingId.isBlank())
-                ? incomingId.trim()
-                : UUID.randomUUID().toString();
-
-        correlationContext.setCorrelationId(resolvedId);
-        response.setHeader(CorrelationContext.HEADER_NAME, resolvedId);
-
-        try {
-            filterChain.doFilter(request, response);
-        } finally {
-            correlationContext.clearMdc();
-        }
+protected void doFilterInternal(
+        HttpServletRequest request,
+        HttpServletResponse response,
+        FilterChain filterChain
+) throws ServletException, IOException {
+    try {
+        String correlationId = correlationContext.getOrCreate(
+                request.getHeader(CorrelationContext.HEADER_NAME)
+        );
+        response.setHeader(CorrelationContext.HEADER_NAME, correlationId);
+        filterChain.doFilter(request, response);
+    } finally {
+        correlationContext.clear();
     }
+}
 }

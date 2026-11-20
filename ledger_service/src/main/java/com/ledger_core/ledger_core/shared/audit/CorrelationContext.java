@@ -2,31 +2,40 @@ package com.ledger_core.ledger_core.shared.audit;
 
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.annotation.RequestScope;
 
 import java.util.UUID;
 
 @Component
-@RequestScope
 public class CorrelationContext {
 
     public static final String HEADER_NAME = "X-Correlation-Id";
     public static final String MDC_KEY = "correlationId";
 
-    private String correlationId = UUID.randomUUID().toString();
+    private final ThreadLocal<String> currentCorrelationId = new ThreadLocal<>();
 
-    public String getCorrelationId() {
-        return correlationId;
+    public String getOrCreate(String incomingHeader) {
+        String value = (incomingHeader != null && !incomingHeader.isBlank())
+                ? incomingHeader.trim()
+                : UUID.randomUUID().toString();
+        setCorrelationId(value);
+        return value;
     }
 
     public void setCorrelationId(String correlationId) {
-        if (correlationId != null && !correlationId.isBlank()) {
-            this.correlationId = correlationId.trim();
-        }
-        MDC.put(MDC_KEY, this.correlationId);
+        currentCorrelationId.set(correlationId);
+        MDC.put(MDC_KEY, correlationId);
     }
 
-    public void clearMdc() {
+    public String getCorrelationId() {
+        String id = currentCorrelationId.get();
+        if (id == null) {
+            id = MDC.get(MDC_KEY);
+        }
+        return id;
+    }
+
+    public void clear() {
+        currentCorrelationId.remove();
         MDC.remove(MDC_KEY);
     }
 }

@@ -1,0 +1,397 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <h2>Financial Statements</h2>
+      <p class="subtitle">Real-time ledger aggregations for Trial Balance, P&amp;L, Balance Sheet, and Cash Flows.</p>
+    </div>
+    <div class="tabs">
+      <button type="button" [class.active]="activeTab() === 'TB'" (click)="selectTab('TB')">Trial Balance</button>
+      <button type="button" [class.active]="activeTab() === 'PNL'" (click)="selectTab('PNL')">Income Statement</button>
+      <button type="button" [class.active]="activeTab() === 'BS'" (click)="selectTab('BS')">Balance Sheet</button>
+      <button type="button" [class.active]="activeTab() === 'CF'" (click)="selectTab('CF')">Cash Flows</button>
+    </div>
+  </header>
+
+  <div class="filters-bar card">
+    @if (activeTab() === 'TB' || activeTab() === 'BS') {
+      <label>
+        As Of Date
+        <input type="date" [(ngModel)]="asOfDate" />
+      </label>
+    } @else {
+      <label>
+        Start Date
+        <input type="date" [(ngModel)]="startDate" />
+      </label>
+      <label>
+        End Date
+        <input type="date" [(ngModel)]="endDate" />
+      </label>
+    }
+    <button type="button" class="primary-btn" (click)="refreshActiveStatement()" [disabled]="loading()">
+      {{ loading() ? 'Calculating...' : 'Run Report' }}
+    </button>
+  </div>
+
+  @if (activeTab() === 'TB' && trialBalance(); as tb) {
+    <div class="card">
+      <div class="statement-banner">
+        <h3>Trial Balance</h3>
+        <span class="check-badge" [class.ok]="tb.balanced" [class.warn]="!tb.balanced">
+          {{ tb.balanced ? '✓ Debits = Credits' : '✗ Out of Balance' }}
+        </span>
+      </div>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Account</th>
+            <th>Type</th>
+            <th>Normal</th>
+            <th class="num">Total Debits</th>
+            <th class="num">Total Credits</th>
+            <th class="num">Net Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of tb.rows; track row.accountId) {
+            <tr>
+              <td class="mono">{{ row.accountCode }}</td>
+              <td>
+                {{ row.accountName }}
+                @if (row.contra) {
+                  <span class="tag">CONTRA</span>
+                }
+              </td>
+              <td>{{ row.accountType }}</td>
+              <td class="mono">{{ row.normalSide }}</td>
+              <td class="num mono">{{ +row.totalDebits !== 0 ? (+row.totalDebits | number: '1.2-2') : '—' }}</td>
+              <td class="num mono">{{ +row.totalCredits !== 0 ? (+row.totalCredits | number: '1.2-2') : '—' }}</td>
+              <td class="num mono">{{ +row.netBalance | number: '1.2-2' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="7" class="muted">No trial balance activity found.</td>
+            </tr>
+          }
+        </tbody>
+        <tfoot>
+          <tr class="grand-total-row">
+            <td colspan="4">Totals</td>
+            <td class="num mono">{{ +tb.totalDebits | number: '1.2-2' }}</td>
+            <td class="num mono">{{ +tb.totalCredits | number: '1.2-2' }}</td>
+            <td class="num mono">—</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  }
+
+  @if (activeTab() === 'PNL' && incomeStatement(); as pnl) {
+    <div class="card">
+      <div class="statement-banner">
+        <h3>Income Statement (Profit &amp; Loss)</h3>
+        <span class="net-pill">Net Income: {{ pnl.netIncome | number: '1.2-2' }}</span>
+      </div>
+
+      <!-- 1. REVENUES -->
+      <h4 class="section-title">Revenues</h4>
+      <table class="data-table">
+        <tbody>
+          @for (r of pnl.revenues; track r.accountId) {
+            <tr>
+              <td class="mono">{{ r.accountCode }}</td>
+              <td>{{ r.accountName }}</td>
+              <td class="num mono">{{ r.amount | number: '1.2-2' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="2" class="muted">No revenue recorded</td>
+              <td class="num mono">0.00</td>
+            </tr>
+          }
+          <tr class="subtotal-row">
+            <td colspan="2">Total Revenue</td>
+            <td class="num mono">{{ pnl.totalRevenue | number: '1.2-2' }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 2. EXPENSES -->
+      <h4 class="section-title section-gap">Expenses</h4>
+      <table class="data-table">
+        <tbody>
+          @for (e of pnl.expenses; track e.accountId) {
+            <tr>
+              <td class="mono">{{ e.accountCode }}</td>
+              <td>{{ e.accountName }}</td>
+              <td class="num mono">{{ e.amount | number: '1.2-2' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="2" class="muted">No expenses recorded</td>
+              <td class="num mono">0.00</td>
+            </tr>
+          }
+          <tr class="subtotal-row">
+            <td colspan="2">Total Expenses</td>
+            <td class="num mono">{{ pnl.totalExpenses | number: '1.2-2' }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 3. NET INCOME -->
+      <table class="data-table final-equation-table">
+        <tfoot>
+          <tr class="grand-total-row">
+            <td colspan="2">Net Income (Total Revenue − Total Expenses)</td>
+            <td class="num mono">{{ pnl.netIncome | number: '1.2-2' }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  }
+
+  @if (activeTab() === 'BS' && balanceSheet(); as bs) {
+    <div class="card">
+      <div class="statement-banner">
+        <h3>Balance Sheet</h3>
+        <span class="check-badge" [class.ok]="bs.balanced" [class.warn]="!bs.balanced">
+          {{ bs.balanced ? '✓ Assets = Liabilities + Equity' : '✗ Equation Imbalance' }}
+        </span>
+      </div>
+
+      <div class="summary-strip">
+        <div>
+          <span class="k">Total Assets</span>
+          <strong class="mono">{{ bs.totalAssets | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Total Liabilities</span>
+          <strong class="mono">{{ bs.totalLiabilities | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Unclosed Net Income</span>
+          <strong class="mono">{{ bs.cumulativeUnclosedNetIncome | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Total Equity (incl. Unclosed)</span>
+          <strong class="mono">{{ bs.totalEquity | number: '1.2-2' }}</strong>
+        </div>
+      </div>
+
+      <!-- 1. ASSETS SECTION -->
+      <h4 class="section-title">Assets</h4>
+      <table class="data-table">
+        <tbody>
+          @for (a of bs.assets; track a.accountId) {
+            <tr>
+              <td class="mono">{{ a.accountCode }}</td>
+              <td>{{ a.accountName }}</td>
+              <td class="num mono">{{ a.amount | number: '1.2-2' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="3" class="muted text-center">No asset balances found.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <table class="data-table final-equation-table">
+        <tfoot>
+          <tr class="grand-total-row">
+            <td colspan="2">Total Assets</td>
+            <td class="num mono">{{ bs.totalAssets | number: '1.2-2' }}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <!-- 2. LIABILITIES SECTION -->
+      <h4 class="section-title section-gap">Liabilities</h4>
+      <table class="data-table">
+        <tbody>
+          @for (l of bs.liabilities; track l.accountId) {
+            <tr>
+              <td class="mono">{{ l.accountCode }}</td>
+              <td>{{ l.accountName }}</td>
+              <td class="num mono">{{ l.amount | number: '1.2-2' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="2" class="muted">No current liabilities</td>
+              <td class="num mono">0.00</td>
+            </tr>
+          }
+          <tr class="subtotal-row">
+            <td colspan="2">Total Liabilities</td>
+            <td class="num mono">{{ bs.totalLiabilities | number: '1.2-2' }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 3. EQUITY SECTION -->
+      <h4 class="section-title section-gap">Owner's / Shareholders' Equity</h4>
+      <table class="data-table">
+        <tbody>
+          @for (eq of bs.equity; track eq.accountId) {
+            <tr>
+              <td class="mono">{{ eq.accountCode }}</td>
+              <td>{{ eq.accountName }}</td>
+              <td class="num mono">{{ eq.amount | number: '1.2-2' }}</td>
+            </tr>
+          }
+          <tr>
+            <td class="mono">RE-UNCLOSED</td>
+            <td>
+              Cumulative Unclosed Net Income
+              <span class="tag">Retained Earnings</span>
+            </td>
+            <td class="num mono">{{ bs.cumulativeUnclosedNetIncome | number: '1.2-2' }}</td>
+          </tr>
+          <tr class="subtotal-row">
+            <td colspan="2">Total Equity</td>
+            <td class="num mono">{{ bs.totalEquity | number: '1.2-2' }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 4. TOTAL LIABILITIES & EQUITY RECONCILIATION -->
+      <table class="data-table final-equation-table">
+        <tfoot>
+          <tr class="grand-total-row">
+            <td colspan="2">Total Liabilities &amp; Equity</td>
+            <td class="num mono">
+              {{ (+bs.totalLiabilities + +bs.totalEquity) | number: '1.2-2' }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  }
+
+  @if (activeTab() === 'CF' && cashFlow(); as cf) {
+    <div class="card">
+      <div class="statement-banner">
+        <h3>Statement of Cash Flows</h3>
+        <span class="check-badge" [class.ok]="cf.reconciled" [class.warn]="!cf.reconciled">
+          {{ cf.reconciled ? '✓ Cash Reconciled' : '✗ Cash Discrepancy' }}
+        </span>
+      </div>
+
+      <div class="summary-strip">
+        <div>
+          <span class="k">Beginning Cash</span>
+          <strong class="mono">{{ cf.beginningCashBalance | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Operating Cash Flow</span>
+          <strong class="mono">{{ cf.operatingCashFlow | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Investing Cash Flow</span>
+          <strong class="mono">{{ cf.investingCashFlow | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Financing Cash Flow</span>
+          <strong class="mono">{{ cf.financingCashFlow | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Ending Cash</span>
+          <strong class="mono">{{ cf.endingCashBalance | number: '1.2-2' }}</strong>
+        </div>
+      </div>
+
+      <!-- 1. OPERATING ACTIVITIES -->
+      <h4 class="section-title">Operating Activities</h4>
+      <table class="data-table">
+        <tbody>
+          @for (item of cf.operatingActivities; track item.accountId + item.category) {
+            <tr>
+              <td class="mono">{{ item.accountCode }}</td>
+              <td>{{ item.accountName }}</td>
+              <td class="num mono">{{ item.amount | number: '1.2-2' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="2" class="muted">No operating cash activity</td>
+              <td class="num mono">0.00</td>
+            </tr>
+          }
+          <tr class="subtotal-row">
+            <td colspan="2">Net Cash from Operating Activities</td>
+            <td class="num mono">{{ cf.operatingCashFlow | number: '1.2-2' }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 2. INVESTING ACTIVITIES -->
+      <h4 class="section-title section-gap">Investing Activities</h4>
+      <table class="data-table">
+        <tbody>
+          @for (item of cf.investingActivities; track item.accountId + item.category) {
+            <tr>
+              <td class="mono">{{ item.accountCode }}</td>
+              <td>{{ item.accountName }}</td>
+              <td class="num mono">{{ item.amount | number: '1.2-2' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="2" class="muted">No investing cash activity</td>
+              <td class="num mono">0.00</td>
+            </tr>
+          }
+          <tr class="subtotal-row">
+            <td colspan="2">Net Cash from Investing Activities</td>
+            <td class="num mono">{{ cf.investingCashFlow | number: '1.2-2' }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 3. FINANCING ACTIVITIES -->
+      <h4 class="section-title section-gap">Financing Activities</h4>
+      <table class="data-table">
+        <tbody>
+          @for (item of cf.financingActivities; track item.accountId + item.category) {
+            <tr>
+              <td class="mono">{{ item.accountCode }}</td>
+              <td>{{ item.accountName }}</td>
+              <td class="num mono">{{ item.amount | number: '1.2-2' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="2" class="muted">No financing cash activity</td>
+              <td class="num mono">0.00</td>
+            </tr>
+          }
+          <tr class="subtotal-row">
+            <td colspan="2">Net Cash from Financing Activities</td>
+            <td class="num mono">{{ cf.financingCashFlow | number: '1.2-2' }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 4. CASH RECONCILIATION SUMMARY -->
+      <table class="data-table final-equation-table">
+        <tbody>
+          <tr>
+            <td colspan="2">Net Increase / (Decrease) in Cash</td>
+            <td class="num mono">{{ cf.netCashChange | number: '1.2-2' }}</td>
+          </tr>
+          <tr>
+            <td colspan="2">Beginning Cash Balance</td>
+            <td class="num mono">{{ cf.beginningCashBalance | number: '1.2-2' }}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr class="grand-total-row">
+            <td colspan="2">Ending Cash Balance</td>
+            <td class="num mono">{{ cf.endingCashBalance | number: '1.2-2' }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  }
+
+</section>

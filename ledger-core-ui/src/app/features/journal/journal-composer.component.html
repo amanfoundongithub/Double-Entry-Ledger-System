@@ -1,0 +1,206 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <h2>Journal Entry Composer</h2>
+      <p class="subtitle">Enforce double-entry balance, debit/credit rules, and period checks.</p>
+    </div>
+    <div class="preset-buttons">
+      <span class="preset-label">Test Scenarios:</span>
+      <button type="button" class="secondary-btn" (click)="loadScenarioA()">
+        Scenario A (Partial Cash/Credit)
+      </button>
+      <button type="button" class="secondary-btn" (click)="loadScenarioB()">
+        Scenario B (Asset Disposal)
+      </button>
+    </div>
+  </header>
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="composer-card">
+    <div class="header-inputs">
+      <label>
+        Posting Date
+        <input type="date" formControlName="postingDate" />
+      </label>
+
+      <label>
+        Period ID
+        <input type="text" formControlName="periodId" placeholder="2026-11" />
+      </label>
+
+      <label>
+        Reference #
+        <input type="text" formControlName="reference" placeholder="INV-2026-001" />
+      </label>
+
+      <label class="wide">
+        Description / Memo
+        <input type="text" formControlName="description" placeholder="Client engagement invoice billing" />
+      </label>
+    </div>
+
+    <div class="lines-container">
+      <table class="lines-table">
+        <thead>
+          <tr>
+            <th style="width: 28%">Account</th>
+            <th style="width: 16%">Debit Amount</th>
+            <th style="width: 16%">Credit Amount</th>
+            <th style="width: 18%">Cash Flow Category</th>
+            <th style="width: 17%">Line Memo</th>
+            <th style="width: 5%"></th>
+          </tr>
+        </thead>
+        <tbody formArrayName="lines">
+          @for (line of linesArray.controls; track $index; let i = $index) {
+            <tr [formGroupName]="i">
+              <td>
+                <select formControlName="accountId" (change)="onAccountSelected(i)">
+                  <option value="" disabled>-- Select Account --</option>
+                  @for (acc of accounts(); track acc.id) {
+                    <option [value]="acc.id">
+                      {{ acc.code }} — {{ acc.name }} ({{ acc.type }})
+                    </option>
+                  }
+                </select>
+              </td>
+              <td>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  formControlName="debitAmount"
+                  placeholder="0.00"
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  formControlName="creditAmount"
+                  placeholder="0.00"
+                />
+              </td>
+              <td>
+                <select formControlName="cashFlowCategory">
+                  @for (cat of cashFlowCategories; track cat) {
+                    <option [value]="cat">{{ cat }}</option>
+                  }
+                </select>
+              </td>
+              <td>
+                <input type="text" formControlName="memo" placeholder="Optional memo" />
+              </td>
+              <td class="action-cell">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  title="Remove line"
+                  [disabled]="linesArray.length <= 2"
+                  (click)="removeLine(i)"
+                >
+                  &times;
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="composer-footer">
+      <button type="button" class="secondary-btn" (click)="addLine()">
+        + Add Journal Line
+      </button>
+
+      <div class="balance-summary" [class.unbalanced]="!isBalanced()">
+        <div class="summary-metric">
+          <span class="metric-label">Total Debits</span>
+          <span class="metric-value">{{ totalDebits() | number: '1.2-2' }}</span>
+        </div>
+        <div class="summary-metric">
+          <span class="metric-label">Total Credits</span>
+          <span class="metric-value">{{ totalCredits() | number: '1.2-2' }}</span>
+        </div>
+        <div class="summary-metric status-metric">
+          @if (isBalanced()) {
+            <span class="badge badge-balanced">✓ Balanced</span>
+          } @else {
+            <span class="badge badge-imbalanced">
+              Imbalance: {{ imbalance() | number: '1.2-2' }}
+            </span>
+          }
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        class="primary-btn"
+        [disabled]="submitting() || !isBalanced() || form.invalid"
+      >
+        {{ submitting() ? 'Posting Entry...' : 'Post Journal Entry' }}
+      </button>
+    </div>
+  </form>
+
+  <div class="card recent-entries-card">
+    <h3>Recent Journal Entries</h3>
+    @if (recentEntries().length === 0) {
+      <p class="muted">No journal entries posted yet.</p>
+    } @else {
+      <div class="entries-list">
+        @for (entry of recentEntries(); track entry.id) {
+          <article class="entry-item" [class.reversed]="entry.status === 'REVERSED'">
+            <div class="entry-header">
+              <div class="entry-meta">
+                <span class="mono bold">{{ entry.entryNumber }}</span>
+                <span
+                  class="badge"
+                  [class.badge-posted]="entry.status === 'POSTED'"
+                  [class.badge-reversed]="entry.status === 'REVERSED'"
+                >
+                  {{ entry.status }}
+                </span>
+                @if (entry.reference) {
+                  <span class="tag">Ref: {{ entry.reference }}</span>
+                }
+                <span class="muted text-sm">{{ entry.postingDate | date: 'mediumDate' }}</span>
+              </div>
+              <div class="entry-actions">
+                <span class="amount-total">{{ entry.totalAmount | currency: 'INR' }}</span>
+                @if (entry.status === 'POSTED') {
+                  <button
+                    type="button"
+                    class="danger-btn text-sm"
+                    [disabled]="reversingId() === entry.id"
+                    (click)="onReverse(entry)"
+                  >
+                    {{ reversingId() === entry.id ? 'Reversing...' : 'Reverse Entry' }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <p class="entry-desc">{{ entry.description }}</p>
+
+            <table class="nested-lines">
+              @for (line of entry.lines; track line.accountId + line.debitAmount + line.creditAmount) {
+                <tr>
+                  <td class="mono">{{ line.accountCode }}</td>
+                  <td>{{ line.accountName }}</td>
+                  <td class="num">
+                    {{ line.debitAmount !== '0.00' ? (line.debitAmount | number: '1.2-2') : '' }}
+                  </td>
+                  <td class="num">
+                    {{ line.creditAmount !== '0.00' ? (line.creditAmount | number: '1.2-2') : '' }}
+                  </td>
+                  <td class="muted">{{ line.memo || '' }}</td>
+                </tr>
+              }
+            </table>
+          </article>
+        }
+      </div>
+    }
+  </div>
+</section>

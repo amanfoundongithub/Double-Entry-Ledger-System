@@ -1,0 +1,97 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <h2>Accounting Periods</h2>
+      <p class="subtitle">Control posting cutoffs across OPEN, CLOSED, and LOCKED periods.</p>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Create Period</h3>
+      <form [formGroup]="form" (ngSubmit)="onCreate()" class="period-form">
+        <label>
+          Period ID
+          <input type="text" formControlName="id" placeholder="2026-12" />
+        </label>
+
+        <label>
+          Period Name
+          <input type="text" formControlName="name" placeholder="December 2026" />
+        </label>
+
+        <div class="row">
+          <label>
+            Start Date
+            <input type="date" formControlName="startDate" />
+          </label>
+          <label>
+            End Date
+            <input type="date" formControlName="endDate" />
+          </label>
+        </div>
+
+        <button type="submit" class="primary-btn" [disabled]="creating()">
+          {{ creating() ? 'Creating...' : 'Create Period' }}
+        </button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Periods ({{ periods().length }})</h3>
+      @if (periods().length === 0) {
+        <p class="muted">No accounting periods found.</p>
+      } @else {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Window</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of periods(); track p.id) {
+              <tr>
+                <td class="mono bold">{{ p.id }}</td>
+                <td>{{ p.name }}</td>
+                <td class="mono text-sm">
+                  {{ p.startDate | date: 'mediumDate' }} – {{ p.endDate | date: 'mediumDate' }}
+                </td>
+                <td>
+                  <span
+                    class="status-pill"
+                    [class.open]="p.status === 'OPEN'"
+                    [class.closed]="p.status === 'CLOSED'"
+                    [class.locked]="p.status === 'LOCKED'"
+                  >
+                    {{ p.status }}
+                  </span>
+                </td>
+                <td class="actions">
+                  @if (p.status === 'OPEN') {
+                    <button type="button" class="mini-btn" [disabled]="busyId() === p.id" (click)="onClose(p)">
+                      Close
+                    </button>
+                  }
+                  @if (p.status !== 'LOCKED') {
+                    <button type="button" class="mini-btn" [disabled]="busyId() === p.id" (click)="onLock(p)">
+                      Lock
+                    </button>
+                  }
+                  @if (p.status !== 'OPEN') {
+                    <button type="button" class="mini-btn" [disabled]="busyId() === p.id" (click)="onReopen(p)">
+                      Reopen
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  </div>
+</section>

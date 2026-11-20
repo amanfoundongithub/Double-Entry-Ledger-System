@@ -21,8 +21,8 @@ public record CreateAccountRequest(
 
         NormalSide normalSide,
         CashFlowCategory cashFlowCategory,
-        boolean cashEquivalent,
-        boolean contra,
+        Boolean cashEquivalent,
+        Boolean contra,
 
         @Size(min = 3, max = 3, message = "Currency must be a 3-letter ISO code")
         String currency,
@@ -30,4 +30,11 @@ public record CreateAccountRequest(
         @Size(max = 500, message = "Description must be at most 500 characters")
         String description
 ) {
+    public boolean isCashEquivalent() {
+        return Boolean.TRUE.equals(cashEquivalent);
+    }
+
+    public boolean isContra() {
+        return Boolean.TRUE.equals(contra);
+    }
 }
