@@ -6,6 +6,7 @@ plugins {
 
 group = 'com.ledger_core'
 version = '0.0.1-SNAPSHOT'
+description = 'Accrual-based double-entry financial ledger and reporting engine'
 
 java {
 	toolchain {
@@ -18,7 +19,20 @@ repositories {
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter'
+	
+	// Web & REST API
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+
+	// MongoDB (Spring Data + Transactions)
+	implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+
+	// Bean Validation (Jakarta Validation)
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+	// Health & Observability
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+	// Testing
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

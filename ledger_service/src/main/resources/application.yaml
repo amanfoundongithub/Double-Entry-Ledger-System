@@ -1,3 +1,23 @@
 spring:
+
+  profiles:
+    active: local
+
   application:
-    name: ledger_core
+    name: ledger-core
+
+  threads:
+    virtual:
+      enabled: true
+  
+  data: 
+    mongodb:
+      auto-index-creation: ${MONGODB_AUTO_INDEX_CREATION}
+  mongodb:
+    uri: ${MONGODB_URI}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

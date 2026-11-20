@@ -1,0 +1,3 @@
+# MongoDB configuration
+MONGODB_URI: 
+MONGODB_AUTO_INDEX_CREATION: true
