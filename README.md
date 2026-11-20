@@ -60,6 +60,46 @@ npm start
 
 The Angular dev server uses `ledger-core-ui/proxy.conf.json` to forward `/api` requests to `http://localhost:5555`.
 
+## Run tests
+
+```bash
+cd ledger-core-ui
+npm ci
+npm run lint
+npm test -- --watch=false
+npm run build
+
+cd ../ledger_service
+./gradlew check
+```
+
+GitHub Actions runs Angular linting, tests, and a production build, plus the service's Gradle verification checks, on pushes and pull requests to `main`.
+
+## Container images
+
+The Angular UI and Spring service have separate production Dockerfiles. GitHub Actions builds both images for pull requests and publishes them to GitHub Container Registry (GHCR) only after pushes to `main`. Published images have `latest` and commit-SHA tags. A manual workflow run builds images without publishing them.
+
+The images are published as:
+
+- `ghcr.io/<owner>/ledger-core-ui`
+- `ghcr.io/<owner>/ledger-service`
+
+The service requires `MONGODB_URI` and `MONGODB_AUTO_INDEX_CREATION` at runtime. The local Spring profile file is excluded from the service Docker build context. The UI proxies `/api` requests to `http://ledger-service:5555` by default; set `API_UPSTREAM` to the service URL if it differs.
+
+Example deployment on a host with Docker installed:
+
+```bash
+docker network create ledger
+docker run -d --name ledger-service --network ledger -p 5555:5555 \
+  -e MONGODB_URI \
+  -e MONGODB_AUTO_INDEX_CREATION=true \
+  ghcr.io/<owner>/ledger-service:latest
+docker run -d --name ledger-ui --network ledger -p 8080:8080 \
+  ghcr.io/<owner>/ledger-core-ui:latest
+```
+
+Open the UI at `http://localhost:8080`. The GHCR packages may need to be made public in the repository's package settings for unauthenticated pulls.
+
 ## API overview
 
 The API is served under `/api/v1`.

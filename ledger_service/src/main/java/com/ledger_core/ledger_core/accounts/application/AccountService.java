@@ -38,8 +38,8 @@ public class AccountService {
                 request.type(),
                 request.normalSide(),
                 request.cashFlowCategory(),
-                request.cashEquivalent(),
-                request.contra(),
+                request.isCashEquivalent(),
+                request.isContra(),
                 request.currency(),
                 request.description(),
                 now
