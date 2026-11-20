@@ -3,6 +3,9 @@ package com.ledger_core.ledger_core.outbox.application;
 import com.ledger_core.ledger_core.journal.domain.JournalEntry;
 import com.ledger_core.ledger_core.outbox.domain.OutboxEvent;
 import com.ledger_core.ledger_core.outbox.infrastructure.OutboxEventRepository;
+import com.ledger_core.ledger_core.shared.audit.CorrelationContext;
+
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
@@ -25,8 +28,7 @@ public class DomainEventPublisher {
     public DomainEventPublisher(
             OutboxEventRepository outboxRepository,
             JsonMapper jsonMapper,
-            Clock clock
-    ) {
+            Clock clock) {
         this.outboxRepository = outboxRepository;
         this.jsonMapper = jsonMapper;
         this.clock = clock;
@@ -37,7 +39,8 @@ public class DomainEventPublisher {
     }
 
     public void enqueueJournalEntryReversed(JournalEntry reversalEntry) {
-        enqueue(AGGREGATE_JOURNAL_ENTRY, reversalEntry.entryNumber(), EVENT_ENTRY_REVERSED, buildPayload(reversalEntry));
+        enqueue(AGGREGATE_JOURNAL_ENTRY, reversalEntry.entryNumber(), EVENT_ENTRY_REVERSED,
+                buildPayload(reversalEntry));
     }
 
     public void enqueue(String aggregateType, String aggregateId, String eventType, String payload) {
@@ -46,21 +49,21 @@ public class DomainEventPublisher {
                 aggregateId,
                 eventType,
                 payload,
-                Instant.now(clock)
-        );
+                Instant.now(clock));
         outboxRepository.save(event);
     }
 
     private String buildPayload(JournalEntry entry) {
         try {
+            String correlationId = MDC.get(CorrelationContext.MDC_KEY);
             Map<String, Object> body = Map.of(
+                    "correlationId", correlationId != null ? correlationId : "",
                     "entryId", entry.id() != null ? entry.id() : "",
                     "entryNumber", entry.entryNumber(),
                     "status", entry.status().name(),
                     "periodId", entry.periodId(),
                     "total", entry.totalAmount().value().toPlainString(),
-                    "postingDate", entry.postingDate().toString()
-            );
+                    "postingDate", entry.postingDate().toString());
             return jsonMapper.writeValueAsString(body);
         } catch (JacksonException e) {
             throw new IllegalStateException("Failed to serialize outbox event payload", e);
