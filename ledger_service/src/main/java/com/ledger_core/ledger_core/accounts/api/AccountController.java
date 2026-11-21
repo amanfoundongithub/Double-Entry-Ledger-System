@@ -2,7 +2,12 @@ package com.ledger_core.ledger_core.accounts.api;
 
 import com.ledger_core.ledger_core.accounts.application.AccountService;
 import com.ledger_core.ledger_core.accounts.domain.AccountType;
+import com.ledger_core.ledger_core.reporting.api.AccountLedgerResponse;
+import com.ledger_core.ledger_core.reporting.application.AccountLedgerService;
+
 import jakarta.validation.Valid;
+
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @RestController
@@ -21,9 +28,11 @@ import java.util.List;
 public class AccountController {
 
     private final AccountService accountService;
+    private  final AccountLedgerService ledgerService;
 
-    public AccountController(AccountService accountService) {
+    public AccountController(AccountService accountService, AccountLedgerService ledgerService) {
         this.accountService = accountService;
+        this.ledgerService = ledgerService;
     }
 
     @PostMapping
@@ -54,4 +63,20 @@ public class AccountController {
     public ResponseEntity<AccountResponse> deactivateAccount(@PathVariable String id) {
         return ResponseEntity.ok(accountService.deactivateAccount(id));
     }
+
+    @GetMapping("/{accountId}/ledger")
+public ResponseEntity<AccountLedgerResponse> getAccountLedger(
+        @PathVariable String accountId,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+) {
+    LocalDate now = LocalDate.now(ZoneOffset.UTC);
+    LocalDate effectiveStart = startDate != null ? startDate : now.withDayOfMonth(1);
+    LocalDate effectiveEnd = endDate != null ? endDate : now;
+    return ResponseEntity.ok(
+            ledgerService.getAccountLedger(accountId, effectiveStart, effectiveEnd)
+    );
+}
 }

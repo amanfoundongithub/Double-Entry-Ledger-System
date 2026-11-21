@@ -1,0 +1,228 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <h2>Account Ledger</h2>
+      @if (ledger(); as l) {
+        <p class="subtitle">
+          <span class="mono">{{ l.accountCode }}</span> — {{ l.accountName }}
+          <span class="tag">{{ l.accountType }}</span>
+          <span class="tag">{{ l.normalSide }}</span>
+          @if (l.contra) {
+            <span class="tag">CONTRA</span>
+          }
+        </p>
+      } @else {
+        <p class="subtitle">Line-by-line posted journal activity and running balance.</p>
+      }
+    </div>
+    <div class="header-actions">
+      @if (ledger()) {
+        <button type="button" class="secondary-btn" (click)="exportCsv()">
+          Export CSV
+        </button>
+      }
+      <a routerLink="/accounts" class="secondary-btn">Back to Accounts</a>
+    </div>
+  </header>
+
+  <div class="filters-bar card">
+    <label>
+      Start Date
+      <input type="date" [(ngModel)]="startDate" />
+    </label>
+    <label>
+      End Date
+      <input type="date" [(ngModel)]="endDate" />
+    </label>
+    <button type="button" class="primary-btn" (click)="loadLedger()" [disabled]="loading()">
+      {{ loading() ? 'Loading...' : 'Load Ledger' }}
+    </button>
+
+    @if (ledger()) {
+      <label class="search-field">
+        Search Entry / Ref / Memo
+        <input
+          type="text"
+          placeholder="e.g. JE-2026-000004, INV-2026-12..."
+          [ngModel]="searchQuery()"
+          (ngModelChange)="searchQuery.set($event)"
+        />
+      </label>
+
+      <div class="side-pills" role="group" aria-label="Filter by debit or credit">
+        <button
+          type="button"
+          [class.active]="sideFilter() === 'ALL'"
+          (click)="sideFilter.set('ALL')"
+        >
+          All
+        </button>
+        <button
+          type="button"
+          [class.active]="sideFilter() === 'DEBIT'"
+          (click)="sideFilter.set('DEBIT')"
+        >
+          Debits
+        </button>
+        <button
+          type="button"
+          [class.active]="sideFilter() === 'CREDIT'"
+          (click)="sideFilter.set('CREDIT')"
+        >
+          Credits
+        </button>
+      </div>
+    }
+  </div>
+
+  @if (loading() && !ledger()) {
+    <div class="card">
+      <p class="muted">Loading account ledger...</p>
+    </div>
+  }
+
+  @if (ledger(); as l) {
+    <div class="card">
+      <div class="summary-strip">
+        <div>
+          <span class="k">Opening Balance</span>
+          <strong class="mono">{{ toNumber(l.openingBalance) | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Total Debits</span>
+          <strong class="mono">{{ toNumber(l.totalDebits) | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Total Credits</span>
+          <strong class="mono">{{ toNumber(l.totalCredits) | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Closing Balance</span>
+          <strong class="mono">{{ toNumber(l.closingBalance) | number: '1.2-2' }}</strong>
+        </div>
+      </div>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Posting Date</th>
+            <th>Entry #</th>
+            <th>Period</th>
+            <th>Description &amp; Memo</th>
+            <th class="num">Debit</th>
+            <th class="num">Credit</th>
+            <th class="num">Running Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="subtotal-row">
+            <td colspan="6">Opening Balance</td>
+            <td class="num mono">{{ toNumber(l.openingBalance) | number: '1.2-2' }}</td>
+          </tr>
+
+          @for (
+            row of filteredEntries();
+            track row.journalEntryId + '-' + row.entryNumber + '-' + $index
+          ) {
+            <tr
+              class="clickable-row"
+              tabindex="0"
+              [class.selected]="selectedEntry()?.journalEntryId === row.journalEntryId && selectedEntry()?.entryNumber === row.entryNumber"
+              (click)="openInspector(row)"
+              (keydown.enter)="openInspector(row)"
+              (keydown.space)="openInspector(row); $event.preventDefault()"
+            >
+              <td class="mono">{{ row.postingDate | date: 'yyyy-MM-dd' : 'UTC' }}</td>
+              <td class="mono">
+                {{ row.entryNumber }}
+                @if (row.reference) {
+                  <div class="muted text-sm">{{ row.reference }}</div>
+                }
+              </td>
+              <td class="mono">{{ row.periodId }}</td>
+              <td>
+                <div>{{ row.description }}</div>
+                @if (row.memo) {
+                  <div class="muted text-sm">{{ row.memo }}</div>
+                }
+              </td>
+              <td class="num mono">
+                {{ toNumber(row.debitAmount) !== 0 ? (toNumber(row.debitAmount) | number: '1.2-2') : '—' }}
+              </td>
+              <td class="num mono">
+                {{ toNumber(row.creditAmount) !== 0 ? (toNumber(row.creditAmount) | number: '1.2-2') : '—' }}
+              </td>
+              <td class="num mono">{{ toNumber(row.runningBalance) | number: '1.2-2' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="7" class="muted">No matching posted journal lines in this view.</td>
+            </tr>
+          }
+        </tbody>
+        <tfoot>
+          <tr class="grand-total-row">
+            <td colspan="4">Closing Balance ({{ filteredEntries().length }} lines shown)</td>
+            <td class="num mono">{{ toNumber(l.totalDebits) | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(l.totalCredits) | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(l.closingBalance) | number: '1.2-2' }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  }
+
+  @if (selectedEntry(); as entry) {
+    <div class="inspector-backdrop">
+      <aside class="inspector-drawer card">
+        <div class="inspector-header">
+          <div>
+            <span class="tag">{{ entry.entryStatus }}</span>
+            <h3>{{ entry.entryNumber }}</h3>
+            <p class="muted mono text-sm">{{ entry.journalEntryId }}</p>
+          </div>
+          <button type="button" class="secondary-btn" (click)="closeInspector()">Close</button>
+        </div>
+
+        <dl class="meta-grid">
+          <div>
+            <dt>Posting Date</dt>
+            <dd class="mono">{{ entry.postingDate | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} UTC</dd>
+          </div>
+          <div>
+            <dt>Transaction Date</dt>
+            <dd class="mono">{{ entry.transactionDate | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} UTC</dd>
+          </div>
+          <div>
+            <dt>Period</dt>
+            <dd class="mono">{{ entry.periodId }}</dd>
+          </div>
+          <div>
+            <dt>Reference</dt>
+            <dd class="mono">{{ entry.reference || '—' }}</dd>
+          </div>
+          <div>
+            <dt>Debit Amount</dt>
+            <dd class="mono">{{ toNumber(entry.debitAmount) | number: '1.2-2' }}</dd>
+          </div>
+          <div>
+            <dt>Credit Amount</dt>
+            <dd class="mono">{{ toNumber(entry.creditAmount) | number: '1.2-2' }}</dd>
+          </div>
+          <div class="full-span">
+            <dt>Running Balance After Line</dt>
+            <dd class="mono"><strong>{{ toNumber(entry.runningBalance) | number: '1.2-2' }}</strong></dd>
+          </div>
+          <div class="full-span">
+            <dt>Entry Description</dt>
+            <dd>{{ entry.description }}</dd>
+          </div>
+          <div class="full-span">
+            <dt>Line Memo</dt>
+            <dd>{{ entry.memo || '—' }}</dd>
+          </div>
+        </dl>
+      </aside>
+    </div>
+  }
+</section>

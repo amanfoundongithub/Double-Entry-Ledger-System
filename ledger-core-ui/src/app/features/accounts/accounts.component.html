@@ -116,6 +116,7 @@
               <th>Normal</th>
               <th>Cash Flow</th>
               <th>Status</th>
+              <th>Ledger</th>
             </tr>
           </thead>
           <tbody>
@@ -123,7 +124,9 @@
               <tr>
                 <td class="mono">{{ acc.code }}</td>
                 <td>
-                  {{ acc.name }}
+                  <a [routerLink]="['/accounts', acc.id, 'ledger']" class="account-link">
+                    {{ acc.name }}
+                  </a>
                   @if (acc.contra) {
                     <span class="tag">CONTRA</span>
                   }
@@ -135,6 +138,11 @@
                 <td class="mono">{{ acc.normalSide }}</td>
                 <td>{{ acc.cashFlowCategory }}</td>
                 <td>{{ acc.active ? 'ACTIVE' : 'INACTIVE' }}</td>
+                <td>
+                  <a [routerLink]="['/accounts', acc.id, 'ledger']" class="ledger-link">
+                    View Ledger
+                  </a>
+                </td>
               </tr>
             }
           </tbody>
