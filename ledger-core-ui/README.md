@@ -1,6 +1,6 @@
 # LedgerCore UI
 
-The Angular frontend for LedgerCore. It provides account management, journal entry posting and reversal, period controls, account ledgers, and financial statements.
+The Angular frontend for LedgerCore.
 
 ## Stack
 
@@ -8,18 +8,31 @@ The Angular frontend for LedgerCore. It provides account management, journal ent
 - Angular CLI 21.2.30
 - TypeScript 5.9
 - RxJS 7.8
-- Vitest 4 for unit tests
+- Vitest 4
 - ESLint and Prettier
+
+## Features
+
+- Journal entry composer with account selection, balanced debit/credit validation, sample scenarios, reversal, and recent-entry listing
+- Chart-of-account management and dated account ledgers
+- Accounting-period creation and lifecycle controls
+- Trial balance, income statement, balance sheet, and cash-flow views
+- Template browser with search, category and due-date filtering, pagination, cloning, deletion, recurring schedules, and direct posting
+- Template creation from scratch or by importing a posted entry
+- Fixed, percentage, and balancing template allocations
 
 ## Routes
 
-- `/journal` - journal entry composer and recent entries
-- `/accounts` - chart-of-account management
-- `/accounts/:accountId/ledger` - account ledger
-- `/periods` - accounting-period lifecycle
-- `/statements` - trial balance and financial statements
+| Route | Page |
+| :--- | :--- |
+| `/journal` | Journal composer |
+| `/accounts` | Chart of accounts |
+| `/accounts/:accountId/ledger` | Account ledger |
+| `/periods` | Accounting periods |
+| `/statements` | Financial statements |
+| `/templates` | Journal-entry templates |
 
-The application redirects `/` to `/journal`.
+The root route redirects to `/journal`.
 
 ## Development
 
@@ -27,18 +40,23 @@ Prerequisites:
 
 - Node.js 22
 - npm 11
-- LedgerCore backend running at `http://localhost:5555`
+- LedgerCore backend at `http://localhost:5555`
 
-Install dependencies and start the development server:
+Install dependencies and start the app:
 
 ```bash
 npm ci
 npm start
 ```
 
-Open `http://localhost:4200`. The server forwards `/api` requests to the backend using `proxy.conf.json`.
+Open `http://localhost:4200`. `/api` requests are proxied to the backend through `proxy.conf.json`.
 
-To start both the frontend and backend together, run `../dev.sh` from the repository root.
+To start both applications together:
+
+```bash
+cd ..
+./dev.sh
+```
 
 ## Commands
 
@@ -48,13 +66,14 @@ npm run lint              # Lint TypeScript and Angular templates
 npm test -- --watch=false # Run unit tests once
 npm run build             # Create the production bundle
 npm run watch             # Rebuild continuously in development mode
+npm run ng -- --help      # Angular CLI help
 ```
 
-The production build writes to `dist/ledger-core-ui/browser`.
+The production bundle is written to `dist/ledger-core-ui/browser`.
 
 ## Production container
 
-The Docker image uses Node 22 to build the Angular application and nginx-unprivileged to serve it.
+The Docker build uses Node 22 to compile the app and nginx-unprivileged to serve it.
 
 ```bash
 docker build -t ledger-core-ui .
