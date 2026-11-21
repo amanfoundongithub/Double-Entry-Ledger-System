@@ -26,11 +26,11 @@
   </header>
 
   <div class="filters-bar card">
-    <label>
+    <label class="date-field">
       Start Date
       <input type="date" [(ngModel)]="startDate" />
     </label>
-    <label>
+    <label class="date-field">
       End Date
       <input type="date" [(ngModel)]="endDate" />
     </label>
@@ -40,10 +40,10 @@
 
     @if (ledger()) {
       <label class="search-field">
-        Search Entry / Ref / Memo
+        Search
         <input
           type="text"
-          placeholder="e.g. JE-2026-000004, INV-2026-12..."
+          placeholder="Entry #, ref, memo..."
           [ngModel]="searchQuery()"
           (ngModelChange)="searchQuery.set($event)"
         />
@@ -105,13 +105,13 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th>Posting Date</th>
+            <th>Date</th>
             <th>Entry #</th>
             <th>Period</th>
             <th>Description &amp; Memo</th>
             <th class="num">Debit</th>
             <th class="num">Credit</th>
-            <th class="num">Running Balance</th>
+            <th class="num">Balance</th>
           </tr>
         </thead>
         <tbody>
@@ -142,7 +142,7 @@
               <td class="mono">{{ row.periodId }}</td>
               <td>
                 <div>{{ row.description }}</div>
-                @if (row.memo) {
+                @if (hasMeaningfulMemo(row.memo)) {
                   <div class="muted text-sm">{{ row.memo }}</div>
                 }
               </td>
@@ -162,7 +162,7 @@
         </tbody>
         <tfoot>
           <tr class="grand-total-row">
-            <td colspan="4">Closing Balance ({{ filteredEntries().length }} lines shown)</td>
+            <td colspan="4">Closing Balance ({{ filteredEntries().length }} lines)</td>
             <td class="num mono">{{ toNumber(l.totalDebits) | number: '1.2-2' }}</td>
             <td class="num mono">{{ toNumber(l.totalCredits) | number: '1.2-2' }}</td>
             <td class="num mono">{{ toNumber(l.closingBalance) | number: '1.2-2' }}</td>
@@ -177,7 +177,17 @@
       <aside class="inspector-drawer card">
         <div class="inspector-header">
           <div>
-            <span class="tag">{{ entry.entryStatus }}</span>
+            <div class="badge-row">
+              <span class="tag">{{ entry.entryStatus }}</span>
+              @if (selectedFullEntry(); as full) {
+                @if (full.sourceType === 'REVERSAL') {
+                  <span class="tag tag-info">REVERSAL</span>
+                }
+                @if (full.reversedByEntryId) {
+                  <span class="tag tag-warn">REVERSED</span>
+                }
+              }
+            </div>
             <h3>{{ entry.entryNumber }}</h3>
             <p class="muted mono text-sm">{{ entry.journalEntryId }}</p>
           </div>
@@ -190,10 +200,6 @@
             <dd class="mono">{{ entry.postingDate | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} UTC</dd>
           </div>
           <div>
-            <dt>Transaction Date</dt>
-            <dd class="mono">{{ entry.transactionDate | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} UTC</dd>
-          </div>
-          <div>
             <dt>Period</dt>
             <dd class="mono">{{ entry.periodId }}</dd>
           </div>
@@ -202,26 +208,87 @@
             <dd class="mono">{{ entry.reference || '—' }}</dd>
           </div>
           <div>
-            <dt>Debit Amount</dt>
-            <dd class="mono">{{ toNumber(entry.debitAmount) | number: '1.2-2' }}</dd>
-          </div>
-          <div>
-            <dt>Credit Amount</dt>
-            <dd class="mono">{{ toNumber(entry.creditAmount) | number: '1.2-2' }}</dd>
-          </div>
-          <div class="full-span">
-            <dt>Running Balance After Line</dt>
+            <dt>Running Balance</dt>
             <dd class="mono"><strong>{{ toNumber(entry.runningBalance) | number: '1.2-2' }}</strong></dd>
           </div>
           <div class="full-span">
-            <dt>Entry Description</dt>
+            <dt>Description</dt>
             <dd>{{ entry.description }}</dd>
           </div>
-          <div class="full-span">
-            <dt>Line Memo</dt>
-            <dd>{{ entry.memo || '—' }}</dd>
-          </div>
+          @if (hasMeaningfulMemo(entry.memo)) {
+            <div class="full-span">
+              <dt>Line Memo</dt>
+              <dd>{{ entry.memo }}</dd>
+            </div>
+          }
+          @if (selectedFullEntry()?.reversalOfEntryId; as revOfId) {
+            <div class="full-span">
+              <dt>Reverses Entry ID</dt>
+              <dd class="mono">{{ revOfId }}</dd>
+            </div>
+          }
         </dl>
+
+        <div class="full-lines-section">
+          <div class="lines-heading-row">
+            <h4>Journal Lines</h4>
+            @if (selectedFullEntry(); as full) {
+              <span class="muted text-sm mono">
+                {{ full.sourceType || 'MANUAL' }} · {{ full.createdBy || 'system' }}
+              </span>
+            }
+          </div>
+
+          @if (loadingFullEntry()) {
+            <p class="muted text-sm">Loading entry lines...</p>
+          } @else if (selectedFullEntry(); as full) {
+            <table class="drawer-table">
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th class="num">Debit</th>
+                  <th class="num">Credit</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (l of full.lines; track l.accountId + '-' + $index) {
+                  <tr [class.highlighted]="l.accountId === accountId">
+                    <td>
+                      <div class="mono acct-code">{{ l.accountCode }}</div>
+                      <div class="account-name-sm">{{ l.accountName }}</div>
+                      @if (hasMeaningfulMemo(l.memo)) {
+                        <div class="muted text-sm">{{ l.memo }}</div>
+                      }
+                    </td>
+                    <td class="num mono amt-col">
+                      {{ toNumber(l.debitAmount) !== 0 ? (toNumber(l.debitAmount) | number: '1.2-2') : '—' }}
+                    </td>
+                    <td class="num mono amt-col">
+                      {{ toNumber(l.creditAmount) !== 0 ? (toNumber(l.creditAmount) | number: '1.2-2') : '—' }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            <div class="drawer-actions">
+              @if (full.reversedByEntryId) {
+                <p class="muted text-sm">
+                  Reversed by: <span class="mono">{{ full.reversedByEntryId }}</span>
+                </p>
+              } @else if (entry.entryStatus === 'POSTED' && full.sourceType !== 'REVERSAL') {
+                <button
+                  type="button"
+                  class="danger-btn"
+                  (click)="confirmReverse(entry)"
+                  [disabled]="reversing()"
+                >
+                  {{ reversing() ? 'Reversing...' : 'Reverse Entry' }}
+                </button>
+              }
+            </div>
+          }
+        </div>
       </aside>
     </div>
   }
