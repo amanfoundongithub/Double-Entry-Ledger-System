@@ -79,12 +79,10 @@ public class StatementEngineService {
                 return debits.subtract(credits);
             }
             if (account.isContra()) {
-                // Contra-assets show as deductions in Asset section; contra-liabilities/equity similarly
-                NormalSide naturalSide = account.getType().defaultNormalSide();
-                MonetaryAmount raw = naturalSide == NormalSide.DEBIT
-                        ? debits.subtract(credits)
-                        : credits.subtract(debits);
-                return raw.negate();
+                // Use the effective contra normal side, then preserve the resulting sign.
+                // For accumulated depreciation this produces -20 when credits are 20,
+                // so it deducts from gross assets rather than being added again.
+                return signedNormalBalance();
             }
             return signedNormalBalance();
         }

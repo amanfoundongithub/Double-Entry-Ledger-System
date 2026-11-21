@@ -1,12 +1,13 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, DecimalPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import {
   BalanceSheetResponse,
   CashFlowStatementResponse,
   IncomeStatementResponse,
+  StatementAccountLine,
   TrialBalanceResponse,
 } from '../../core/models/ledger.models';
 import { LedgerApiService } from '../../core/services/ledger-api.service';
@@ -17,7 +18,7 @@ type StatementTab = 'TB' | 'PNL' | 'BS' | 'CF';
 @Component({
   selector: 'app-statements',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, DecimalPipe],
   templateUrl: './statements.component.html',
   styleUrl: './statements.component.scss',
 })
@@ -37,7 +38,20 @@ export class StatementsComponent implements OnInit {
   readonly balanceSheet = signal<BalanceSheetResponse | null>(null);
   readonly cashFlow = signal<CashFlowStatementResponse | null>(null);
 
+  private readonly contraAccountIds = computed(() => {
+    const ids = new Set<string>();
+    for (const acc of this.api.accounts()) {
+      if (acc.contra) {
+        ids.add(acc.id);
+      }
+    }
+    return ids;
+  });
+
   ngOnInit(): void {
+    if (this.api.accounts().length === 0) {
+      this.api.loadAccounts().subscribe();
+    }
     this.refreshActiveStatement();
   }
 
@@ -109,5 +123,43 @@ export class StatementsComponent implements OnInit {
         });
         break;
     }
+  }
+
+  isContra(
+    line: ({ accountId?: string; contra?: boolean; amount?: number | string } & Partial<StatementAccountLine>) | null | undefined
+  ): boolean {
+    if (!line) {
+      return false;
+    }
+    if (line.contra) {
+      return true;
+    }
+    if (line.accountId && this.contraAccountIds().has(line.accountId)) {
+      return true;
+    }
+    return this.toNumber(line.amount) < 0;
+  }
+
+  toNumber(val: number | string | null | undefined): number {
+    if (val === null || val === undefined || val === '') {
+      return 0;
+    }
+    const parsed = typeof val === 'number' ? val : Number(val);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  /**
+   * Returns standard financial format: absolute value in parentheses if contra or negative
+   */
+  formatFinancial(val: number | string | null | undefined, isContra = false): string {
+    const num = this.toNumber(val);
+    const absVal = Math.abs(num).toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    if (isContra || num < 0) {
+      return `(${absVal})`;
+    }
+    return absVal;
   }
 }

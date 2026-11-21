@@ -300,3 +300,29 @@
     color: var(--primary-accent, #2563eb);
   }
 }
+
+.tag-contra {
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
+  margin-left: 0.4rem;
+}
+
+.acct-name-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+
+  &.contra-indent {
+    padding-left: 1.25rem;
+  }
+}
+
+.contra-row td {
+  color: var(--text-secondary, #475569);
+}
+
+.contra-amt {
+  color: #b91c1c; /* Crimson / negative indicator */
+  font-weight: 500;
+}
