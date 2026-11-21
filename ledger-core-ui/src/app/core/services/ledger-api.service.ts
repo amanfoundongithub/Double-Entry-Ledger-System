@@ -1,8 +1,9 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import {
   Account,
+  AccountLedgerResponse,
   BalanceSheetResponse,
   CashFlowStatementResponse,
   CreateAccountRequest,
@@ -13,7 +14,6 @@ import {
   PostJournalEntryRequest,
   ReverseJournalEntryRequest,
   TrialBalanceResponse,
-  AccountLedgerResponse
 } from '../models/ledger.models';
 
 @Injectable({ providedIn: 'root' })
@@ -52,19 +52,50 @@ export class LedgerApiService {
     );
   }
 
+  getJournalEntry(entryId: string): Observable<JournalEntryResponse> {
+    return this.http.get<JournalEntryResponse>(`${this.baseUrl}/journal-entries/${entryId}`);
+  }
+
   reverseJournalEntry(
     entryId: string,
     request: ReverseJournalEntryRequest = {},
     idempotencyKey?: string
   ): Observable<JournalEntryResponse> {
-    const headers: Record<string, string> = idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {};
+    const key =
+      idempotencyKey ||
+      (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `rev-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+
+    let params = new HttpParams();
+    if (request.reason && request.reason.trim()) {
+      params = params.set('reason', request.reason.trim());
+    }
+    if (request.createdBy && request.createdBy.trim()) {
+      params = params.set('createdBy', request.createdBy.trim());
+    }
+
+    const headers = new HttpHeaders({
+      'Idempotency-Key': key,
+    });
+
     return this.http
-      .post<JournalEntryResponse>(`${this.baseUrl}/journal-entries/${entryId}/reverse`, request, { headers })
+      .post<JournalEntryResponse>(
+        `${this.baseUrl}/journal-entries/${entryId}/reverse`,
+        null,
+        { headers, params }
+      )
       .pipe(
-        tap(() => {
-          this.recentEntries.update((prev) =>
-            prev.map((item) => (item.id === entryId ? { ...item, status: 'REVERSED' } : item))
-          );
+        tap((reversalEntry) => {
+          this.recentEntries.update((prev) => {
+            const updatedExisting = prev.map((item) =>
+              item.id === entryId || item.id === reversalEntry.reversalOfEntryId
+                ? { ...item, status: 'REVERSED' as const, reversedByEntryId: reversalEntry.id }
+                : item
+            );
+            const alreadyPresent = updatedExisting.some((item) => item.id === reversalEntry.id);
+            return alreadyPresent ? updatedExisting : [reversalEntry, ...updatedExisting];
+          });
         })
       );
   }
@@ -123,11 +154,10 @@ export class LedgerApiService {
 
   getAccountLedger(accountId: string, startDate: string, endDate: string): Observable<AccountLedgerResponse> {
     const params = new HttpParams().set('startDate', startDate).set('endDate', endDate);
-    return this.http.get<AccountLedgerResponse>(`${this.baseUrl}/accounts/${accountId}/ledger`,{ params });
+    return this.http.get<AccountLedgerResponse>(`${this.baseUrl}/accounts/${accountId}/ledger`, { params });
   }
 
   private syncPeriod(updated: PeriodResponse): void {
     this.periods.update((list) => list.map((p) => (p.id === updated.id ? updated : p)));
   }
-
 }

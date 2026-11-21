@@ -13,6 +13,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   AccountLedgerEntryLine,
   AccountLedgerResponse,
+  JournalEntryResponse,
 } from '../../../core/models/ledger.models';
 import { LedgerApiService } from '../../../core/services/ledger-api.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -37,6 +38,9 @@ export class AccountLedgerComponent implements OnInit {
   readonly searchQuery = signal<string>('');
   readonly sideFilter = signal<LedgerSideFilter>('ALL');
   readonly selectedEntry = signal<AccountLedgerEntryLine | null>(null);
+  readonly selectedFullEntry = signal<JournalEntryResponse | null>(null);
+  readonly loadingFullEntry = signal<boolean>(false);
+  readonly reversing = signal<boolean>(false);
 
   accountId = '';
   startDate = '';
@@ -125,6 +129,7 @@ export class AccountLedgerComponent implements OnInit {
     }
 
     this.selectedEntry.set(null);
+    this.selectedFullEntry.set(null);
     this.loading.set(true);
 
     this.api.getAccountLedger(this.accountId, this.startDate, this.endDate).subscribe({
@@ -141,10 +146,63 @@ export class AccountLedgerComponent implements OnInit {
 
   openInspector(row: AccountLedgerEntryLine): void {
     this.selectedEntry.set(row);
+    this.selectedFullEntry.set(null);
+    this.loadingFullEntry.set(true);
+
+    this.api.getJournalEntry(row.journalEntryId).subscribe({
+      next: (full) => {
+        this.selectedFullEntry.set(full);
+        this.loadingFullEntry.set(false);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.loadingFullEntry.set(false);
+        this.notifications.fromHttpError(err, 'Failed to Load Journal Entry Details');
+      },
+    });
   }
 
   closeInspector(): void {
     this.selectedEntry.set(null);
+    this.selectedFullEntry.set(null);
+  }
+
+  confirmReverse(entry: AccountLedgerEntryLine): void {
+    const input = window.prompt(
+      `Confirm reversal of ${entry.entryNumber}? Optional reversal reason:`,
+      `Reversal of ${entry.entryNumber}`
+    );
+
+    if (input === null) {
+      return;
+    }
+
+    const reason = input.trim() || undefined;
+
+    this.reversing.set(true);
+    this.api.reverseJournalEntry(entry.journalEntryId, { reason }).subscribe({
+      next: (reversed) => {
+        this.reversing.set(false);
+        this.selectedFullEntry.set(reversed);
+        this.notifications.success(
+          `Reversed ${entry.entryNumber} as ${reversed.entryNumber}`,
+          'Entry Reversed'
+        );
+        this.closeInspector();
+        this.loadLedger();
+      },
+      error: (err: HttpErrorResponse) => {
+        this.reversing.set(false);
+        this.notifications.fromHttpError(err, 'Failed to Reverse Journal Entry');
+      },
+    });
+  }
+
+  hasMeaningfulMemo(memo?: string | null): boolean {
+    if (!memo) {
+      return false;
+    }
+    const cleaned = memo.replace(/:\s*$/, '').trim();
+    return cleaned.length > 0;
   }
 
   exportCsv(): void {

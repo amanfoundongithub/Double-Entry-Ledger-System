@@ -217,3 +217,33 @@ export interface AccountLedgerResponse {
   closingBalance: number | string;
   entries: AccountLedgerEntryLine[];
 }
+
+export interface JournalEntryLineDto {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountType?: AccountType | string;
+  debitAmount: number | string;
+  creditAmount: number | string;
+  memo?: string | null;
+  cashFlowCategory?: CashFlowCategory | string | null;
+}
+
+export interface JournalEntryDetailsResponse {
+  id: string;
+  entryNumber: string;
+  reference?: string | null;
+  sourceType?: string | null;
+  description: string;
+  status: string;
+  postingDate: string;
+  transactionDate: string;
+  periodId: string;
+  reversalOfEntryId?: string | null;
+  reversedByEntryId?: string | null;
+  idempotencyKey?: string | null;
+  lines: JournalEntryLineDto[];
+  totalAmount?: number | string;
+  createdAt?: string | null;
+  createdBy?: string | null;
+}
