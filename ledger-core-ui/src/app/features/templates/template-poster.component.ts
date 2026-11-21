@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import {
   CashFlowCategory,
   CreateTemplateRequest,
+  JournalEntryResponse,
   NormalSide,
   PeriodResponse,
   PostJournalEntryRequest,
@@ -82,6 +83,8 @@ export class TemplatePosterComponent implements OnInit {
   readonly availableTemplates = this.api.templates;
   readonly accounts = this.api.accounts;
   readonly periods = signal<PeriodResponse[]>([]);
+  readonly recentEntries = this.api.recentEntries;
+  readonly selectedSourceEntryId = signal<string>('');
 
   readonly selectedCategory = signal<'ALL' | TemplateCategory>('ALL');
   readonly searchQuery = signal<string>('');
@@ -210,6 +213,71 @@ export class TemplatePosterComponent implements OnInit {
         }
       },
     });
+
+    this.loadRecentEntries();
+  }
+
+  loadRecentEntries(): void {
+    this.api.loadJournalEntries().subscribe({
+      error: () => {
+        // Non-blocking if journal list isn't available yet
+      },
+    });
+  }
+
+  /**
+   * Loads an existing posted journal entry into the template builder so you can
+   * name it, optionally mark a leg as BALANCING or PERCENT, and save as a template.
+   */
+  importEntryIntoTemplateBuilder(entry: JournalEntryResponse): void {
+    this.selectedSourceEntryId.set(entry.id);
+    this.showCreateForm.set(true);
+
+    const cleanSlug = entry.entryNumber
+      .replace(/[^A-Za-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toUpperCase();
+
+    this.newCode = `FROM_${cleanSlug || 'ENTRY'}`;
+    this.newName = entry.description
+      ? `${entry.description.slice(0, 42)} Template`
+      : `Template from ${entry.entryNumber}`;
+    this.newDescription = `Created from posted entry ${entry.entryNumber} (${entry.reference || 'no ref'}).`;
+    this.newDefaultDescription = entry.description || `Entry based on ${entry.entryNumber}`;
+    this.newReferencePrefix = entry.reference
+      ? `${entry.reference.replace(/\d+$/, '')}`
+      : 'JE-2026-';
+
+    this.newLines = entry.lines.map((line, idx) => {
+      const isDebit = (Number(line.debitAmount) || 0) > 0;
+      const amt = isDebit ? Number(line.debitAmount) : Number(line.creditAmount) || 0;
+      const isLastLine = idx === entry.lines.length - 1;
+      const matchedAcc = this.accounts().find((a) => a.code === line.accountCode);
+
+      return {
+        accountCode: line.accountCode,
+        accountName: matchedAcc?.name || line.accountName || line.accountCode,
+        side: isDebit ? 'DEBIT' : 'CREDIT',
+        cashFlowCategory: (line.cashFlowCategory as CashFlowCategory) || 'NONE',
+        defaultMemo: line.memo || '',
+        defaultAmount: isLastLine ? null : amt,
+        amountType: isLastLine ? 'BALANCING' : 'FIXED',
+        allocationPercent: null,
+      };
+    });
+
+    this.notifications.success(
+      'Entry Loaded',
+      `Imported ${entry.entryNumber} lines into the template builder.`
+    );
+  }
+
+  onSourceEntrySelected(entryId: string): void {
+    this.selectedSourceEntryId.set(entryId);
+    const found = this.recentEntries().find((e) => e.id === entryId);
+    if (found) {
+      this.importEntryIntoTemplateBuilder(found);
+    }
   }
 
   private resolveLineAllocationType(line: TemplateLineDef): TemplateAllocationType {
@@ -241,6 +309,7 @@ export class TemplatePosterComponent implements OnInit {
   resetNewTemplateForm(): void {
     const firstAcc = this.accounts()[0];
     const secondAcc = this.accounts()[1] ?? firstAcc;
+    this.selectedSourceEntryId.set('');
     this.newCode = '';
     this.newName = '';
     this.newDescription = '';
@@ -429,7 +498,6 @@ export class TemplatePosterComponent implements OnInit {
   recalculateAllocations(): void {
     const base = this.baseAmount();
 
-    // 1. Compute all PERCENT legs from baseAmount
     let updated = this.draftLines().map((line) => {
       if (line.amountType !== 'PERCENT') {
         return line;
@@ -439,7 +507,6 @@ export class TemplatePosterComponent implements OnInit {
       return { ...line, amount: computed };
     });
 
-    // 2. Compute BALANCING leg (if any) from remaining debits/credits
     const balancerIndex = updated.findIndex((l) => l.amountType === 'BALANCING');
     if (balancerIndex !== -1) {
       const balancer = updated[balancerIndex];
@@ -551,6 +618,7 @@ export class TemplatePosterComponent implements OnInit {
         this.submitting.set(false);
         this.notifications.success('Journal Entry Posted', `Created ${created.entryNumber}`);
         this.regenerateReference(tpl);
+        this.loadRecentEntries();
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);

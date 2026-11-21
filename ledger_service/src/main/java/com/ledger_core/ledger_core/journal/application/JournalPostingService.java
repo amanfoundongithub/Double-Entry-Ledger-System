@@ -15,6 +15,9 @@ import com.ledger_core.ledger_core.outbox.application.DomainEventPublisher;
 import com.ledger_core.ledger_core.periods.application.PeriodEnforcementService;
 import com.ledger_core.ledger_core.shared.exceptions.DomainException;
 import com.ledger_core.ledger_core.shared.money.MonetaryAmount;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -102,6 +105,16 @@ public class JournalPostingService {
     @Transactional(readOnly = true)
     public List<JournalEntryResponse> listByAccount(String accountId) {
         return journalEntryRepository.findByLinesAccountIdOrderByPostingDateDesc(accountId).stream()
+                .map(doc -> JournalEntryResponse.fromDomain(doc.toDomain()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<JournalEntryResponse> listRecent(int limit) {
+        int safeLimit = Math.min(Math.max(limit, 1), 100);
+        return journalEntryRepository
+                .findAll(PageRequest.of(0, safeLimit, Sort.by(Sort.Direction.DESC, "createdAt")))
+                .stream()
                 .map(doc -> JournalEntryResponse.fromDomain(doc.toDomain()))
                 .toList();
     }

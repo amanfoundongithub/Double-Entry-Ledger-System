@@ -65,24 +65,38 @@
   }
 }
 
-.preset-banner {
-  padding: 0.625rem 0.9rem;
+.create-panel {
+  margin-bottom: 0.25rem;
+}
+
+.import-entry-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 1rem;
   border-radius: 8px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  font-size: 0.85rem;
-  color: #475569;
 
-  code {
+  label {
     font-size: 0.8rem;
-    background: #e2e8f0;
-    padding: 0.1rem 0.35rem;
-    border-radius: 4px;
+    font-weight: 600;
+    color: #334155;
+    white-space: nowrap;
   }
-}
 
-.create-panel {
-  margin-bottom: 0.25rem;
+  select {
+    flex: 1;
+    min-width: 220px;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.84rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    background: #fff;
+    color: #0f172a;
+  }
 }
 
 .tpl-workspace {
@@ -349,6 +363,24 @@
   }
 }
 
+.base-amt-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.85rem;
+  border-radius: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+
+  label {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #1e3a8a;
+  }
+}
+
 .meta-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -573,6 +605,15 @@
   }
 }
 
+.pct-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.15rem 0.42rem;
+  border-radius: 4px;
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
 .auto-badge {
   font-size: 0.65rem;
   font-weight: 700;
@@ -680,31 +721,4 @@
     grid-template-columns: 1fr;
     grid-column: 1 / -1;
   }
-}
-
-.base-amt-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.65rem 0.85rem;
-  margin-bottom: 0.85rem;
-  border-radius: 8px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-
-  label {
-    font-size: 0.84rem;
-    font-weight: 600;
-    color: #1e3a8a;
-  }
-}
-
-.pct-badge {
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 0.15rem 0.42rem;
-  border-radius: 4px;
-  background: #e0e7ff;
-  color: #3730a3;
 }

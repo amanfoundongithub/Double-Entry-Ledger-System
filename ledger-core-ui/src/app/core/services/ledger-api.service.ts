@@ -59,6 +59,17 @@ export class LedgerApiService {
     return this.http.get<JournalEntryResponse>(`${this.baseUrl}/journal-entries/${entryId}`);
   }
 
+  getJournalEntryByNumber(entryNumber: string): Observable<JournalEntryResponse> {
+    return this.http.get<JournalEntryResponse>(`${this.baseUrl}/journal-entries/number/${encodeURIComponent(entryNumber)}`);
+  }
+
+  loadJournalEntries(limit = 25): Observable<JournalEntryResponse[]> {
+    const params = new HttpParams().set('limit', limit);
+    return this.http.get<JournalEntryResponse[]>(`${this.baseUrl}/journal-entries/recent`, { params }).pipe(
+      tap((entries) => this.recentEntries.set(entries))
+    );
+  }
+
   reverseJournalEntry(
     entryId: string,
     request: ReverseJournalEntryRequest = {},

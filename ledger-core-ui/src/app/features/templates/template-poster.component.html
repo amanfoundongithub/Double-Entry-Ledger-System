@@ -32,10 +32,28 @@
       <div class="editor-head">
         <div>
           <h3>Create Custom Template</h3>
-          <span class="tpl-subtitle">Define a reusable multi-line blueprint persisted to MongoDB.</span>
+          <span class="tpl-subtitle">Define a reusable multi-line blueprint persisted to MongoDB or clone a posted entry.</span>
         </div>
         <button type="button" class="ghost-btn" (click)="resetNewTemplateForm()">Reset</button>
       </div>
+
+      @if (recentEntries().length > 0) {
+        <div class="import-entry-bar">
+          <label for="source-entry-select">Clone from Posted Entry</label>
+          <select
+            id="source-entry-select"
+            [ngModel]="selectedSourceEntryId()"
+            (ngModelChange)="onSourceEntrySelected($event)"
+          >
+            <option value="">— Select an existing journal entry —</option>
+            @for (entry of recentEntries(); track entry.id) {
+              <option [value]="entry.id">
+                {{ entry.entryNumber }} · {{ entry.reference || 'No Ref' }} — {{ entry.description }}
+              </option>
+            }
+          </select>
+        </div>
+      }
 
       <div class="meta-grid">
         <div class="field">
