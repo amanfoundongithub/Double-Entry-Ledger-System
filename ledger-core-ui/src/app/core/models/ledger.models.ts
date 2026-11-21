@@ -186,3 +186,34 @@ export interface ProblemDetail {
   correlationId?: string;
   timestamp?: string;
 }
+
+export interface AccountLedgerEntryLine {
+  journalEntryId: string;
+  entryNumber: string;
+  reference?: string | null;
+  entryStatus: string;
+  postingDate: string;
+  transactionDate: string;
+  periodId: string;
+  description: string;
+  memo?: string | null;
+  debitAmount: number | string;
+  creditAmount: number | string;
+  runningBalance: number | string;
+}
+
+export interface AccountLedgerResponse {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountType: AccountType;
+  normalSide: NormalSide;
+  contra?: boolean;
+  startDate: string;
+  endDate: string;
+  openingBalance: number | string;
+  totalDebits: number | string;
+  totalCredits: number | string;
+  closingBalance: number | string;
+  entries: AccountLedgerEntryLine[];
+}

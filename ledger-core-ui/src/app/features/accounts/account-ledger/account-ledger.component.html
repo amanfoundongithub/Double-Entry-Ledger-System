@@ -1,0 +1,121 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <h2>Account Ledger</h2>
+      @if (ledger(); as l) {
+        <p class="subtitle">
+          <span class="mono">{{ l.accountCode }}</span> — {{ l.accountName }}
+          <span class="tag">{{ l.accountType }}</span>
+          <span class="tag">{{ l.normalSide }}</span>
+          @if (l.contra) {
+            <span class="tag">CONTRA</span>
+          }
+        </p>
+      } @else {
+        <p class="subtitle">Line-by-line posted journal activity and running balance.</p>
+      }
+    </div>
+    <a routerLink="/accounts" class="secondary-btn">Back to Accounts</a>
+  </header>
+
+  <div class="filters-bar card">
+    <label>
+      Start Date
+      <input type="date" [(ngModel)]="startDate" />
+    </label>
+    <label>
+      End Date
+      <input type="date" [(ngModel)]="endDate" />
+    </label>
+    <button type="button" class="primary-btn" (click)="loadLedger()" [disabled]="loading()">
+      {{ loading() ? 'Loading...' : 'Load Ledger' }}
+    </button>
+  </div>
+
+  @if (loading() && !ledger()) {
+    <div class="card">
+      <p class="muted">Loading account ledger...</p>
+    </div>
+  }
+
+  @if (ledger(); as l) {
+    <div class="card">
+      <div class="summary-strip">
+        <div>
+          <span class="k">Opening Balance</span>
+          <strong class="mono">{{ toNumber(l.openingBalance) | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Total Debits</span>
+          <strong class="mono">{{ toNumber(l.totalDebits) | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Total Credits</span>
+          <strong class="mono">{{ toNumber(l.totalCredits) | number: '1.2-2' }}</strong>
+        </div>
+        <div>
+          <span class="k">Closing Balance</span>
+          <strong class="mono">{{ toNumber(l.closingBalance) | number: '1.2-2' }}</strong>
+        </div>
+      </div>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Posting Date</th>
+            <th>Entry #</th>
+            <th>Period</th>
+            <th>Description &amp; Memo</th>
+            <th class="num">Debit</th>
+            <th class="num">Credit</th>
+            <th class="num">Running Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="subtotal-row">
+            <td colspan="6">Opening Balance</td>
+            <td class="num mono">{{ toNumber(l.openingBalance) | number: '1.2-2' }}</td>
+          </tr>
+
+          @for (row of l.entries; track row.journalEntryId + '-' + row.entryNumber + '-' + $index) {
+            <tr>
+              <td class="mono">{{ row.postingDate | date: 'yyyy-MM-dd' : 'UTC' }}</td>
+              <td class="mono">
+                {{ row.entryNumber }}
+                @if (row.reference) {
+                  <div class="muted text-sm">{{ row.reference }}</div>
+                }
+              </td>
+              <td class="mono">{{ row.periodId }}</td>
+              <td>
+                <div>{{ row.description }}</div>
+                @if (row.memo) {
+                  <div class="muted text-sm">{{ row.memo }}</div>
+                }
+              </td>
+              <td class="num mono">
+                {{ toNumber(row.debitAmount) !== 0 ? (toNumber(row.debitAmount) | number: '1.2-2') : '—' }}
+              </td>
+              <td class="num mono">
+                {{ toNumber(row.creditAmount) !== 0 ? (toNumber(row.creditAmount) | number: '1.2-2') : '—' }}
+              </td>
+              <td class="num mono">{{ toNumber(row.runningBalance) | number: '1.2-2' }}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="7" class="muted">No posted journal lines found in this date range.</td>
+            </tr>
+          }
+        </tbody>
+        <tfoot>
+          <tr class="grand-total-row">
+            <td colspan="4">Closing Balance</td>
+            <td class="num mono">{{ toNumber(l.totalDebits) | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(l.totalCredits) | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(l.closingBalance) | number: '1.2-2' }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  }
+</section>

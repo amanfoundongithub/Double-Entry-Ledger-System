@@ -13,6 +13,7 @@ import {
   PostJournalEntryRequest,
   ReverseJournalEntryRequest,
   TrialBalanceResponse,
+  AccountLedgerResponse
 } from '../models/ledger.models';
 
 @Injectable({ providedIn: 'root' })
@@ -120,7 +121,13 @@ export class LedgerApiService {
     return this.http.get<CashFlowStatementResponse>(`${this.baseUrl}/reports/cash-flow`, { params });
   }
 
+  getAccountLedger(accountId: string, startDate: string, endDate: string): Observable<AccountLedgerResponse> {
+    const params = new HttpParams().set('startDate', startDate).set('endDate', endDate);
+    return this.http.get<AccountLedgerResponse>(`${this.baseUrl}/accounts/${accountId}/ledger`,{ params });
+  }
+
   private syncPeriod(updated: PeriodResponse): void {
     this.periods.update((list) => list.map((p) => (p.id === updated.id ? updated : p)));
   }
+
 }

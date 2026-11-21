@@ -59,7 +59,13 @@
             <tr>
               <td class="mono">{{ row.accountCode }}</td>
               <td>
-                {{ row.accountName }}
+                <a
+                  [routerLink]="['/accounts', row.accountId, 'ledger']"
+                  [queryParams]="ledgerQueryParams()"
+                  class="statement-link"
+                >
+                  {{ row.accountName }}
+                </a>
                 @if (row.contra) {
                   <span class="tag">CONTRA</span>
                 }
@@ -102,7 +108,15 @@
           @for (r of pnl.revenues; track r.accountId) {
             <tr>
               <td class="mono">{{ r.accountCode }}</td>
-              <td>{{ r.accountName }}</td>
+              <td>
+                <a
+                  [routerLink]="['/accounts', r.accountId, 'ledger']"
+                  [queryParams]="ledgerQueryParams()"
+                  class="statement-link"
+                >
+                  {{ r.accountName }}
+                </a>
+              </td>
               <td class="num mono">{{ r.amount | number: '1.2-2' }}</td>
             </tr>
           } @empty {
@@ -125,7 +139,15 @@
           @for (e of pnl.expenses; track e.accountId) {
             <tr>
               <td class="mono">{{ e.accountCode }}</td>
-              <td>{{ e.accountName }}</td>
+              <td>
+                <a
+                  [routerLink]="['/accounts', e.accountId, 'ledger']"
+                  [queryParams]="ledgerQueryParams()"
+                  class="statement-link"
+                >
+                  {{ e.accountName }}
+                </a>
+              </td>
               <td class="num mono">{{ e.amount | number: '1.2-2' }}</td>
             </tr>
           } @empty {
@@ -188,7 +210,15 @@
           @for (a of bs.assets; track a.accountId) {
             <tr>
               <td class="mono">{{ a.accountCode }}</td>
-              <td>{{ a.accountName }}</td>
+              <td>
+                <a
+                  [routerLink]="['/accounts', a.accountId, 'ledger']"
+                  [queryParams]="ledgerQueryParams()"
+                  class="statement-link"
+                >
+                  {{ a.accountName }}
+                </a>
+              </td>
               <td class="num mono">{{ a.amount | number: '1.2-2' }}</td>
             </tr>
           } @empty {
@@ -215,7 +245,15 @@
           @for (l of bs.liabilities; track l.accountId) {
             <tr>
               <td class="mono">{{ l.accountCode }}</td>
-              <td>{{ l.accountName }}</td>
+              <td>
+                <a
+                  [routerLink]="['/accounts', l.accountId, 'ledger']"
+                  [queryParams]="ledgerQueryParams()"
+                  class="statement-link"
+                >
+                  {{ l.accountName }}
+                </a>
+              </td>
               <td class="num mono">{{ l.amount | number: '1.2-2' }}</td>
             </tr>
           } @empty {
@@ -238,7 +276,15 @@
           @for (eq of bs.equity; track eq.accountId) {
             <tr>
               <td class="mono">{{ eq.accountCode }}</td>
-              <td>{{ eq.accountName }}</td>
+              <td>
+                <a
+                  [routerLink]="['/accounts', eq.accountId, 'ledger']"
+                  [queryParams]="ledgerQueryParams()"
+                  class="statement-link"
+                >
+                  {{ eq.accountName }}
+                </a>
+              </td>
               <td class="num mono">{{ eq.amount | number: '1.2-2' }}</td>
             </tr>
           }
@@ -310,7 +356,15 @@
           @for (item of cf.operatingActivities; track item.accountId + item.category) {
             <tr>
               <td class="mono">{{ item.accountCode }}</td>
-              <td>{{ item.accountName }}</td>
+              <td>
+                <a
+                  [routerLink]="['/accounts', item.accountId, 'ledger']"
+                  [queryParams]="ledgerQueryParams()"
+                  class="statement-link"
+                >
+                  {{ item.accountName }}
+                </a>
+              </td>
               <td class="num mono">{{ item.amount | number: '1.2-2' }}</td>
             </tr>
           } @empty {
@@ -333,7 +387,15 @@
           @for (item of cf.investingActivities; track item.accountId + item.category) {
             <tr>
               <td class="mono">{{ item.accountCode }}</td>
-              <td>{{ item.accountName }}</td>
+              <td>
+                <a
+                  [routerLink]="['/accounts', item.accountId, 'ledger']"
+                  [queryParams]="ledgerQueryParams()"
+                  class="statement-link"
+                >
+                  {{ item.accountName }}
+                </a>
+              </td>
               <td class="num mono">{{ item.amount | number: '1.2-2' }}</td>
             </tr>
           } @empty {
@@ -356,7 +418,15 @@
           @for (item of cf.financingActivities; track item.accountId + item.category) {
             <tr>
               <td class="mono">{{ item.accountCode }}</td>
-              <td>{{ item.accountName }}</td>
+              <td>
+                <a
+                  [routerLink]="['/accounts', item.accountId, 'ledger']"
+                  [queryParams]="ledgerQueryParams()"
+                  class="statement-link"
+                >
+                  {{ item.accountName }}
+                </a>
+              </td>
               <td class="num mono">{{ item.amount | number: '1.2-2' }}</td>
             </tr>
           } @empty {

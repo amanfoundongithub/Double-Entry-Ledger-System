@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import {
   BalanceSheetResponse,
   CashFlowStatementResponse,
@@ -16,7 +17,7 @@ type StatementTab = 'TB' | 'PNL' | 'BS' | 'CF';
 @Component({
   selector: 'app-statements',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './statements.component.html',
   styleUrl: './statements.component.scss',
 })
@@ -43,6 +44,19 @@ export class StatementsComponent implements OnInit {
   selectTab(tab: StatementTab): void {
     this.activeTab.set(tab);
     this.refreshActiveStatement();
+  }
+
+  ledgerQueryParams(): { startDate?: string; endDate: string } {
+    const tab = this.activeTab();
+    if (tab === 'PNL' || tab === 'CF') {
+      return {
+        startDate: this.startDate,
+        endDate: this.endDate,
+      };
+    }
+    return {
+      endDate: this.asOfDate,
+    };
   }
 
   refreshActiveStatement(): void {
