@@ -1,0 +1,476 @@
+import { CommonModule, DecimalPipe } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import {
+  CashFlowCategory,
+  CreateTemplateRequest,
+  NormalSide,
+  PeriodResponse,
+  PostJournalEntryRequest,
+  PostJournalLineRequest,
+  TemplateCategory,
+  TemplateLineDef,
+  TemplateResponse,
+} from '../../core/models/ledger.models';
+import { LedgerApiService } from '../../core/services/ledger-api.service';
+import { NotificationService } from '../../core/services/notification.service';
+
+interface DraftTemplateLine {
+  accountCode: string;
+  accountName: string;
+  side: NormalSide;
+  cashFlowCategory: CashFlowCategory;
+  memo: string;
+  amount: number;
+  balancingLeg: boolean;
+}
+
+interface NewTemplateLineForm {
+  accountCode: string;
+  accountName: string;
+  side: NormalSide;
+  cashFlowCategory: CashFlowCategory;
+  defaultMemo: string;
+  defaultAmount: number | null;
+  balancingLeg: boolean;
+}
+
+@Component({
+  selector: 'app-template-poster',
+  standalone: true,
+  imports: [CommonModule, FormsModule, DecimalPipe],
+  templateUrl: './template-poster.component.html',
+  styleUrl: './template-poster.component.scss',
+})
+export class TemplatePosterComponent implements OnInit {
+  private readonly api = inject(LedgerApiService);
+  private readonly notifications = inject(NotificationService);
+
+  readonly pageSize = 4;
+
+  readonly categories: ('ALL' | TemplateCategory)[] = [
+    'ALL',
+    'REVENUE',
+    'EXPENSE',
+    'ASSET',
+    'EQUITY',
+    'ADJUSTMENT',
+  ];
+
+  readonly templateCategories: TemplateCategory[] = [
+    'REVENUE',
+    'EXPENSE',
+    'ASSET',
+    'EQUITY',
+    'ADJUSTMENT',
+  ];
+
+  readonly cashFlowCategories: CashFlowCategory[] = [
+    'NONE',
+    'OPERATING',
+    'INVESTING',
+    'FINANCING',
+  ];
+
+  readonly availableTemplates = this.api.templates;
+  readonly accounts = this.api.accounts;
+  readonly periods = signal<PeriodResponse[]>([]);
+
+  readonly selectedCategory = signal<'ALL' | TemplateCategory>('ALL');
+  readonly searchQuery = signal<string>('');
+  readonly currentPage = signal<number>(1);
+  readonly selectedTemplate = signal<TemplateResponse | null>(null);
+  readonly showCreateForm = signal<boolean>(false);
+  readonly submitting = signal<boolean>(false);
+  readonly savingTemplate = signal<boolean>(false);
+
+  // Poster form state
+  reference = '';
+  description = '';
+  periodId = '';
+  postingDate = '2026-11-21';
+  draftLines: DraftTemplateLine[] = [];
+
+  // Create template form state
+  newCode = '';
+  newName = '';
+  newDescription = '';
+  newDefaultDescription = '';
+  newReferencePrefix = 'JE-2026-';
+  newCategory: TemplateCategory = 'EXPENSE';
+  newLines: NewTemplateLineForm[] = [];
+
+  readonly filteredTemplates = computed(() => {
+    const cat = this.selectedCategory();
+    const q = this.searchQuery().trim().toLowerCase();
+
+    return this.availableTemplates().filter((tpl) => {
+      if (cat !== 'ALL' && tpl.category !== cat) {
+        return false;
+      }
+      if (!q) {
+        return true;
+      }
+      const matchesMeta =
+        tpl.name.toLowerCase().includes(q) ||
+        tpl.code.toLowerCase().includes(q) ||
+        tpl.description.toLowerCase().includes(q) ||
+        (tpl.referencePrefix || '').toLowerCase().includes(q);
+
+      const matchesLines = tpl.lines.some(
+        (line) =>
+          line.accountCode.toLowerCase().includes(q) ||
+          line.accountName.toLowerCase().includes(q) ||
+          line.defaultMemo.toLowerCase().includes(q)
+      );
+
+      return matchesMeta || matchesLines;
+    });
+  });
+
+  readonly totalPages = computed(() =>
+    Math.max(1, Math.ceil(this.filteredTemplates().length / this.pageSize))
+  );
+
+  readonly pagedTemplates = computed(() => {
+    const safePage = Math.min(Math.max(this.currentPage(), 1), this.totalPages());
+    const start = (safePage - 1) * this.pageSize;
+    return this.filteredTemplates().slice(start, start + this.pageSize);
+  });
+
+  readonly totalDebits = computed(() =>
+    this.draftLines
+      .filter((l) => l.side === 'DEBIT')
+      .reduce((sum, l) => sum + (Number(l.amount) || 0), 0)
+  );
+
+  readonly totalCredits = computed(() =>
+    this.draftLines
+      .filter((l) => l.side === 'CREDIT')
+      .reduce((sum, l) => sum + (Number(l.amount) || 0), 0)
+  );
+
+  readonly isBalanced = computed(
+    () => this.totalDebits() > 0 && Math.abs(this.totalDebits() - this.totalCredits()) < 0.005
+  );
+
+  readonly selectedPeriod = computed(() =>
+    this.periods().find((p) => p.id === this.periodId) ?? null
+  );
+
+  readonly isSelectedPeriodClosedOrLocked = computed(() => {
+    const status = this.selectedPeriod()?.status;
+    return status === 'CLOSED' || status === 'LOCKED';
+  });
+
+  constructor() {
+    effect(() => {
+      this.selectedCategory();
+      this.searchQuery();
+      this.currentPage.set(1);
+    });
+  }
+
+  ngOnInit(): void {
+    this.resetNewTemplateForm();
+
+    if (this.accounts().length === 0) {
+      this.api.loadAccounts().subscribe();
+    }
+
+    this.api.loadTemplates().subscribe({
+      next: (list) => {
+        if (list.length > 0 && !this.selectedTemplate()) {
+          this.selectTemplate(list[0]);
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        this.notifications.fromHttpError(err, 'Failed to Load Templates');
+      },
+    });
+
+    this.api.loadPeriods().subscribe({
+      next: (list) => {
+        this.periods.set(list);
+        const openPeriod = list.find((p) => p.status === 'OPEN');
+        if (openPeriod && !this.periodId) {
+          this.periodId = openPeriod.id;
+        }
+      },
+    });
+  }
+
+  clearFilters(): void {
+    this.searchQuery.set('');
+    this.selectedCategory.set('ALL');
+    this.currentPage.set(1);
+  }
+
+  goToPage(page: number): void {
+    const clamped = Math.min(Math.max(page, 1), this.totalPages());
+    this.currentPage.set(clamped);
+  }
+
+  toggleCreateForm(): void {
+    const next = !this.showCreateForm();
+    this.showCreateForm.set(next);
+    if (next && this.newLines.length === 0) {
+      this.resetNewTemplateForm();
+    }
+  }
+
+  resetNewTemplateForm(): void {
+    const firstAcc = this.accounts()[0];
+    const secondAcc = this.accounts()[1] ?? firstAcc;
+    this.newCode = '';
+    this.newName = '';
+    this.newDescription = '';
+    this.newDefaultDescription = '';
+    this.newReferencePrefix = 'JE-2026-';
+    this.newCategory = 'EXPENSE';
+    this.newLines = [
+      {
+        accountCode: firstAcc?.code || '5010',
+        accountName: firstAcc?.name || 'Office Rent & Utilities',
+        side: 'DEBIT',
+        cashFlowCategory: 'NONE',
+        defaultMemo: '',
+        defaultAmount: null,
+        balancingLeg: false,
+      },
+      {
+        accountCode: secondAcc?.code || '1010',
+        accountName: secondAcc?.name || 'Operating Bank Account',
+        side: 'CREDIT',
+        cashFlowCategory: 'OPERATING',
+        defaultMemo: '',
+        defaultAmount: null,
+        balancingLeg: true,
+      },
+    ];
+  }
+
+  addNewTemplateLine(): void {
+    this.newLines.push({
+      accountCode: this.accounts()[0]?.code || '1010',
+      accountName: this.accounts()[0]?.name || 'Operating Bank Account',
+      side: 'DEBIT',
+      cashFlowCategory: 'NONE',
+      defaultMemo: '',
+      defaultAmount: null,
+      balancingLeg: false,
+    });
+  }
+
+  removeNewTemplateLine(index: number): void {
+    if (this.newLines.length > 2) {
+      this.newLines.splice(index, 1);
+    }
+  }
+
+  onNewLineAccountChange(line: NewTemplateLineForm): void {
+    const matched = this.accounts().find((a) => a.code === line.accountCode);
+    if (matched) {
+      line.accountName = matched.name;
+    }
+  }
+
+  submitNewTemplate(): void {
+    const code = this.newCode.trim().toUpperCase();
+    const name = this.newName.trim();
+    const defaultDescription = this.newDefaultDescription.trim();
+
+    if (!code || !name || !defaultDescription) {
+      this.notifications.error(
+        'Missing Fields',
+        'Template code, name, and default description are required.'
+      );
+      return;
+    }
+
+    const lines: TemplateLineDef[] = this.newLines.map((l) => {
+      const matched = this.accounts().find((a) => a.code === l.accountCode);
+      return {
+        accountCode: l.accountCode.trim(),
+        accountName: matched?.name || l.accountName.trim() || l.accountCode.trim(),
+        side: l.side,
+        cashFlowCategory: l.cashFlowCategory,
+        defaultMemo: l.defaultMemo.trim(),
+        defaultAmount: l.balancingLeg ? null : (l.defaultAmount ?? null),
+        balancingLeg: l.balancingLeg,
+      };
+    });
+
+    const payload: CreateTemplateRequest = {
+      code,
+      name,
+      description: this.newDescription.trim() || defaultDescription,
+      defaultDescription,
+      referencePrefix: this.newReferencePrefix.trim() || 'JE-',
+      category: this.newCategory,
+      lines,
+    };
+
+    this.savingTemplate.set(true);
+    this.api.createTemplate(payload).subscribe({
+      next: (created) => {
+        this.savingTemplate.set(false);
+        this.showCreateForm.set(false);
+        this.selectTemplate(created);
+        this.resetNewTemplateForm();
+        this.notifications.success('Template Created', `Saved ${created.code}`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.savingTemplate.set(false);
+        this.notifications.fromHttpError(err, 'Create Template Failed');
+      },
+    });
+  }
+
+  selectTemplate(tpl: TemplateResponse): void {
+    this.selectedTemplate.set(tpl);
+    this.regenerateReference(tpl);
+    this.description = tpl.defaultDescription;
+
+    this.draftLines = tpl.lines.map((line) => {
+      const matchedAcc = this.accounts().find((a) => a.code === line.accountCode);
+      return {
+        accountCode: line.accountCode,
+        accountName: matchedAcc?.name || line.accountName,
+        side: line.side,
+        cashFlowCategory: line.cashFlowCategory,
+        memo: line.defaultMemo,
+        amount: line.defaultAmount ?? 0,
+        balancingLeg: line.balancingLeg,
+      };
+    });
+
+    this.recalculateBalancingLeg();
+  }
+
+  regenerateReference(tpl = this.selectedTemplate()): void {
+    const prefix = tpl?.referencePrefix || 'JE-';
+    const suffix = String(Math.floor(100 + Math.random() * 900));
+    this.reference = `${prefix}${suffix}`;
+  }
+
+  recalculateBalancingLeg(): void {
+    const balancerIndex = this.draftLines.findIndex((l) => l.balancingLeg);
+    if (balancerIndex === -1) {
+      return;
+    }
+
+    const balancer = this.draftLines[balancerIndex];
+    const otherDebits = this.draftLines
+      .filter((l, idx) => l.side === 'DEBIT' && (l.side !== balancer.side || idx !== balancerIndex))
+      .reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+
+    const otherCredits = this.draftLines
+      .filter((l, idx) => l.side === 'CREDIT' && (l.side !== balancer.side || idx !== balancerIndex))
+      .reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+
+    const computedAmount =
+      balancer.side === 'CREDIT'
+        ? Math.max(0, Number((otherDebits - otherCredits).toFixed(2)))
+        : Math.max(0, Number((otherCredits - otherDebits).toFixed(2)));
+
+    this.draftLines[balancerIndex] = {
+      ...balancer,
+      amount: computedAmount,
+    };
+  }
+
+  saveCurrentAsTemplate(): void {
+    const tpl = this.selectedTemplate();
+    if (!tpl) {
+      return;
+    }
+
+    const uniqueCode = `${tpl.code}_CUSTOM_${Math.floor(100 + Math.random() * 900)}`;
+    const req: CreateTemplateRequest = {
+      code: uniqueCode,
+      name: `${tpl.name} (Custom)`,
+      description: tpl.description,
+      defaultDescription: this.description.trim() || tpl.defaultDescription,
+      referencePrefix: tpl.referencePrefix,
+      category: tpl.category,
+      lines: this.draftLines.map((line) => ({
+        accountCode: line.accountCode,
+        accountName: line.accountName,
+        side: line.side,
+        cashFlowCategory: line.cashFlowCategory,
+        defaultMemo: line.memo,
+        defaultAmount: line.balancingLeg ? null : Number(line.amount) || 0,
+        balancingLeg: line.balancingLeg,
+      })),
+    };
+
+    this.savingTemplate.set(true);
+    this.api.createTemplate(req).subscribe({
+      next: (created) => {
+        this.savingTemplate.set(false);
+        this.selectTemplate(created);
+        this.notifications.success('Template Saved', `Created ${created.code}`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.savingTemplate.set(false);
+        this.notifications.fromHttpError(err, 'Save Template Failed');
+      },
+    });
+  }
+
+  postEntry(): void {
+    const tpl = this.selectedTemplate();
+    if (!tpl || !this.isBalanced()) {
+      return;
+    }
+
+    const lines: PostJournalLineRequest[] = [];
+    for (const draft of this.draftLines) {
+      const account = this.accounts().find((a) => a.code === draft.accountCode);
+      if (!account) {
+        this.notifications.error(
+          'Missing Account',
+          `Account code ${draft.accountCode} was not found in the chart of accounts.`
+        );
+        return;
+      }
+
+      const amt = Number(draft.amount) || 0;
+      lines.push({
+        accountId: account.id,
+        accountCode: account.code,
+        debitAmount: draft.side === 'DEBIT' ? amt : 0,
+        creditAmount: draft.side === 'CREDIT' ? amt : 0,
+        memo: draft.memo,
+        cashFlowCategory: draft.cashFlowCategory,
+      });
+    }
+
+    const postingIso = new Date(`${this.postingDate}T12:00:00.000Z`).toISOString();
+    const payload: PostJournalEntryRequest = {
+      reference: this.reference.trim(),
+      sourceType: 'MANUAL',
+      postingDate: postingIso,
+      transactionDate: postingIso,
+      description: this.description.trim(),
+      periodId: this.periodId || undefined,
+      createdBy: 'ui-template-poster',
+      lines,
+    };
+
+    this.submitting.set(true);
+    this.api.postJournalEntry(payload).subscribe({
+      next: (created) => {
+        this.submitting.set(false);
+        this.notifications.success('Journal Entry Posted', `Created ${created.entryNumber}`);
+        this.regenerateReference(tpl);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.submitting.set(false);
+        this.notifications.fromHttpError(err, 'Post Failed');
+      },
+    });
+  }
+}

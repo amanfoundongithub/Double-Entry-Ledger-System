@@ -4,6 +4,7 @@ import { AccountsComponent } from './features/accounts/accounts.component';
 import { JournalComposerComponent } from './features/journal/journal-composer.component';
 import { PeriodsComponent } from './features/periods/periods.component';
 import { StatementsComponent } from './features/statements/statements.component';
+import { TemplatePosterComponent } from './features/templates/template-poster.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'journal', pathMatch: 'full' },
@@ -12,5 +13,6 @@ export const routes: Routes = [
   { path: 'accounts/:accountId/ledger', component: AccountLedgerComponent },
   { path: 'periods', component: PeriodsComponent },
   { path: 'statements', component: StatementsComponent },
+  { path: 'templates', component: TemplatePosterComponent},
   { path: '**', redirectTo: 'journal' },
 ];

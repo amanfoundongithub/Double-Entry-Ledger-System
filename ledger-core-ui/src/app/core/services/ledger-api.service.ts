@@ -8,11 +8,13 @@ import {
   CashFlowStatementResponse,
   CreateAccountRequest,
   CreatePeriodRequest,
+  CreateTemplateRequest,
   IncomeStatementResponse,
   JournalEntryResponse,
   PeriodResponse,
   PostJournalEntryRequest,
   ReverseJournalEntryRequest,
+  TemplateResponse,
   TrialBalanceResponse,
 } from '../models/ledger.models';
 
@@ -24,6 +26,7 @@ export class LedgerApiService {
   readonly accounts = signal<Account[]>([]);
   readonly periods = signal<PeriodResponse[]>([]);
   readonly recentEntries = signal<JournalEntryResponse[]>([]);
+  readonly templates = signal<TemplateResponse[]>([]);
   readonly loading = signal<boolean>(false);
 
   loadAccounts(): Observable<Account[]> {
@@ -155,6 +158,25 @@ export class LedgerApiService {
   getAccountLedger(accountId: string, startDate: string, endDate: string): Observable<AccountLedgerResponse> {
     const params = new HttpParams().set('startDate', startDate).set('endDate', endDate);
     return this.http.get<AccountLedgerResponse>(`${this.baseUrl}/accounts/${accountId}/ledger`, { params });
+  }
+
+  loadTemplates(): Observable<TemplateResponse[]> {
+    this.loading.set(true);
+    return this.http.get<TemplateResponse[]>(`${this.baseUrl}/templates`).pipe(
+      tap({
+        next: (items) => {
+          this.templates.set(items);
+          this.loading.set(false);
+        },
+        error: () => this.loading.set(false),
+      })
+    );
+  }
+
+  createTemplate(request: CreateTemplateRequest): Observable<TemplateResponse> {
+    return this.http.post<TemplateResponse>(`${this.baseUrl}/templates`, request).pipe(
+      tap((created) => this.templates.update((prev) => [...prev, created]))
+    );
   }
 
   private syncPeriod(updated: PeriodResponse): void {

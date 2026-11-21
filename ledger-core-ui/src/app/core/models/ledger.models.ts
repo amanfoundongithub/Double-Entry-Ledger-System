@@ -247,3 +247,38 @@ export interface JournalEntryDetailsResponse {
   createdAt?: string | null;
   createdBy?: string | null;
 }
+
+export type TemplateCategory = 'REVENUE' | 'EXPENSE' | 'ASSET' | 'EQUITY' | 'ADJUSTMENT';
+
+export interface TemplateLineDef {
+  accountCode: string;
+  accountName: string;
+  side: NormalSide;
+  cashFlowCategory: CashFlowCategory;
+  defaultMemo: string;
+  defaultAmount?: number | null;
+  balancingLeg: boolean;
+}
+
+export interface TemplateResponse {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  defaultDescription: string;
+  referencePrefix: string;
+  category: TemplateCategory;
+  systemPreset: boolean;
+  lines: TemplateLineDef[];
+  createdAt: string;
+}
+
+export interface CreateTemplateRequest {
+  code: string;
+  name: string;
+  description: string;
+  defaultDescription: string;
+  referencePrefix?: string;
+  category: TemplateCategory;
+  lines: TemplateLineDef[];
+}
