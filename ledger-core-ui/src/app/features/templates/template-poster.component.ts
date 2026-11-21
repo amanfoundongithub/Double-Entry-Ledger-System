@@ -9,6 +9,7 @@ import {
   PeriodResponse,
   PostJournalEntryRequest,
   PostJournalLineRequest,
+  TemplateAllocationType,
   TemplateCategory,
   TemplateLineDef,
   TemplateResponse,
@@ -23,6 +24,8 @@ interface DraftTemplateLine {
   cashFlowCategory: CashFlowCategory;
   memo: string;
   amount: number;
+  amountType: TemplateAllocationType;
+  allocationPercent: number | null;
   balancingLeg: boolean;
 }
 
@@ -33,7 +36,8 @@ interface NewTemplateLineForm {
   cashFlowCategory: CashFlowCategory;
   defaultMemo: string;
   defaultAmount: number | null;
-  balancingLeg: boolean;
+  amountType: TemplateAllocationType;
+  allocationPercent: number | null;
 }
 
 @Component({
@@ -73,6 +77,8 @@ export class TemplatePosterComponent implements OnInit {
     'FINANCING',
   ];
 
+  readonly allocationTypes: TemplateAllocationType[] = ['FIXED', 'PERCENT', 'BALANCING'];
+
   readonly availableTemplates = this.api.templates;
   readonly accounts = this.api.accounts;
   readonly periods = signal<PeriodResponse[]>([]);
@@ -90,7 +96,8 @@ export class TemplatePosterComponent implements OnInit {
   description = '';
   periodId = '';
   postingDate = '2026-11-21';
-  draftLines: DraftTemplateLine[] = [];
+  readonly baseAmount = signal<number>(100000);
+  readonly draftLines = signal<DraftTemplateLine[]>([]);
 
   // Create template form state
   newCode = '';
@@ -100,6 +107,10 @@ export class TemplatePosterComponent implements OnInit {
   newReferencePrefix = 'JE-2026-';
   newCategory: TemplateCategory = 'EXPENSE';
   newLines: NewTemplateLineForm[] = [];
+
+  readonly hasPercentLegs = computed(() =>
+    this.draftLines().some((l) => l.amountType === 'PERCENT')
+  );
 
   readonly filteredTemplates = computed(() => {
     const cat = this.selectedCategory();
@@ -140,13 +151,13 @@ export class TemplatePosterComponent implements OnInit {
   });
 
   readonly totalDebits = computed(() =>
-    this.draftLines
+    this.draftLines()
       .filter((l) => l.side === 'DEBIT')
       .reduce((sum, l) => sum + (Number(l.amount) || 0), 0)
   );
 
   readonly totalCredits = computed(() =>
-    this.draftLines
+    this.draftLines()
       .filter((l) => l.side === 'CREDIT')
       .reduce((sum, l) => sum + (Number(l.amount) || 0), 0)
   );
@@ -201,6 +212,13 @@ export class TemplatePosterComponent implements OnInit {
     });
   }
 
+  private resolveLineAllocationType(line: TemplateLineDef): TemplateAllocationType {
+    if (line.amountType) {
+      return line.amountType;
+    }
+    return line.balancingLeg ? 'BALANCING' : 'FIXED';
+  }
+
   clearFilters(): void {
     this.searchQuery.set('');
     this.selectedCategory.set('ALL');
@@ -237,7 +255,8 @@ export class TemplatePosterComponent implements OnInit {
         cashFlowCategory: 'NONE',
         defaultMemo: '',
         defaultAmount: null,
-        balancingLeg: false,
+        amountType: 'FIXED',
+        allocationPercent: null,
       },
       {
         accountCode: secondAcc?.code || '1010',
@@ -246,7 +265,8 @@ export class TemplatePosterComponent implements OnInit {
         cashFlowCategory: 'OPERATING',
         defaultMemo: '',
         defaultAmount: null,
-        balancingLeg: true,
+        amountType: 'BALANCING',
+        allocationPercent: null,
       },
     ];
   }
@@ -259,7 +279,8 @@ export class TemplatePosterComponent implements OnInit {
       cashFlowCategory: 'NONE',
       defaultMemo: '',
       defaultAmount: null,
-      balancingLeg: false,
+      amountType: 'FIXED',
+      allocationPercent: null,
     });
   }
 
@@ -276,6 +297,20 @@ export class TemplatePosterComponent implements OnInit {
     }
   }
 
+  onNewLineAllocationTypeChange(line: NewTemplateLineForm): void {
+    if (line.amountType === 'BALANCING') {
+      line.defaultAmount = null;
+      line.allocationPercent = null;
+    } else if (line.amountType === 'PERCENT') {
+      line.defaultAmount = null;
+      if (!line.allocationPercent) {
+        line.allocationPercent = 18;
+      }
+    } else {
+      line.allocationPercent = null;
+    }
+  }
+
   submitNewTemplate(): void {
     const code = this.newCode.trim().toUpperCase();
     const name = this.newName.trim();
@@ -289,16 +324,29 @@ export class TemplatePosterComponent implements OnInit {
       return;
     }
 
+    for (const l of this.newLines) {
+      if (l.amountType === 'PERCENT' && (!l.allocationPercent || l.allocationPercent <= 0)) {
+        this.notifications.error(
+          'Invalid Percentage',
+          `Enter a positive allocation % for account ${l.accountCode}.`
+        );
+        return;
+      }
+    }
+
     const lines: TemplateLineDef[] = this.newLines.map((l) => {
       const matched = this.accounts().find((a) => a.code === l.accountCode);
+      const isBalancer = l.amountType === 'BALANCING';
       return {
         accountCode: l.accountCode.trim(),
         accountName: matched?.name || l.accountName.trim() || l.accountCode.trim(),
         side: l.side,
         cashFlowCategory: l.cashFlowCategory,
         defaultMemo: l.defaultMemo.trim(),
-        defaultAmount: l.balancingLeg ? null : (l.defaultAmount ?? null),
-        balancingLeg: l.balancingLeg,
+        defaultAmount: l.amountType === 'FIXED' ? (l.defaultAmount ?? null) : null,
+        balancingLeg: isBalancer,
+        amountType: l.amountType,
+        allocationPercent: l.amountType === 'PERCENT' ? Number(l.allocationPercent) : null,
       };
     });
 
@@ -333,8 +381,9 @@ export class TemplatePosterComponent implements OnInit {
     this.regenerateReference(tpl);
     this.description = tpl.defaultDescription;
 
-    this.draftLines = tpl.lines.map((line) => {
+    const mapped: DraftTemplateLine[] = tpl.lines.map((line) => {
       const matchedAcc = this.accounts().find((a) => a.code === line.accountCode);
+      const allocType = this.resolveLineAllocationType(line);
       return {
         accountCode: line.accountCode,
         accountName: matchedAcc?.name || line.accountName,
@@ -342,11 +391,14 @@ export class TemplatePosterComponent implements OnInit {
         cashFlowCategory: line.cashFlowCategory,
         memo: line.defaultMemo,
         amount: line.defaultAmount ?? 0,
-        balancingLeg: line.balancingLeg,
+        amountType: allocType,
+        allocationPercent: line.allocationPercent ?? null,
+        balancingLeg: allocType === 'BALANCING',
       };
     });
 
-    this.recalculateBalancingLeg();
+    this.draftLines.set(mapped);
+    this.recalculateAllocations();
   }
 
   regenerateReference(tpl = this.selectedTemplate()): void {
@@ -355,30 +407,61 @@ export class TemplatePosterComponent implements OnInit {
     this.reference = `${prefix}${suffix}`;
   }
 
-  recalculateBalancingLeg(): void {
-    const balancerIndex = this.draftLines.findIndex((l) => l.balancingLeg);
-    if (balancerIndex === -1) {
-      return;
+  onBaseAmountChange(value: number | string): void {
+    this.baseAmount.set(Math.max(0, Number(value) || 0));
+    this.recalculateAllocations();
+  }
+
+  updateLineAmount(index: number, value: number | string): void {
+    const amt = Math.max(0, Number(value) || 0);
+    this.draftLines.update((lines) =>
+      lines.map((l, idx) => (idx === index ? { ...l, amount: amt } : l))
+    );
+    this.recalculateAllocations();
+  }
+
+  updateLineMemo(index: number, memo: string): void {
+    this.draftLines.update((lines) =>
+      lines.map((l, idx) => (idx === index ? { ...l, memo } : l))
+    );
+  }
+
+  recalculateAllocations(): void {
+    const base = this.baseAmount();
+
+    // 1. Compute all PERCENT legs from baseAmount
+    let updated = this.draftLines().map((line) => {
+      if (line.amountType !== 'PERCENT') {
+        return line;
+      }
+      const pct = Number(line.allocationPercent) || 0;
+      const computed = Number(((base * pct) / 100).toFixed(2));
+      return { ...line, amount: computed };
+    });
+
+    // 2. Compute BALANCING leg (if any) from remaining debits/credits
+    const balancerIndex = updated.findIndex((l) => l.amountType === 'BALANCING');
+    if (balancerIndex !== -1) {
+      const balancer = updated[balancerIndex];
+      const otherDebits = updated
+        .filter((l, idx) => l.side === 'DEBIT' && (l.side !== balancer.side || idx !== balancerIndex))
+        .reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+
+      const otherCredits = updated
+        .filter((l, idx) => l.side === 'CREDIT' && (l.side !== balancer.side || idx !== balancerIndex))
+        .reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+
+      const computedAmount =
+        balancer.side === 'CREDIT'
+          ? Math.max(0, Number((otherDebits - otherCredits).toFixed(2)))
+          : Math.max(0, Number((otherCredits - otherDebits).toFixed(2)));
+
+      updated = updated.map((l, idx) =>
+        idx === balancerIndex ? { ...balancer, amount: computedAmount } : l
+      );
     }
 
-    const balancer = this.draftLines[balancerIndex];
-    const otherDebits = this.draftLines
-      .filter((l, idx) => l.side === 'DEBIT' && (l.side !== balancer.side || idx !== balancerIndex))
-      .reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
-
-    const otherCredits = this.draftLines
-      .filter((l, idx) => l.side === 'CREDIT' && (l.side !== balancer.side || idx !== balancerIndex))
-      .reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
-
-    const computedAmount =
-      balancer.side === 'CREDIT'
-        ? Math.max(0, Number((otherDebits - otherCredits).toFixed(2)))
-        : Math.max(0, Number((otherCredits - otherDebits).toFixed(2)));
-
-    this.draftLines[balancerIndex] = {
-      ...balancer,
-      amount: computedAmount,
-    };
+    this.draftLines.set(updated);
   }
 
   saveCurrentAsTemplate(): void {
@@ -395,14 +478,16 @@ export class TemplatePosterComponent implements OnInit {
       defaultDescription: this.description.trim() || tpl.defaultDescription,
       referencePrefix: tpl.referencePrefix,
       category: tpl.category,
-      lines: this.draftLines.map((line) => ({
+      lines: this.draftLines().map((line) => ({
         accountCode: line.accountCode,
         accountName: line.accountName,
         side: line.side,
         cashFlowCategory: line.cashFlowCategory,
         defaultMemo: line.memo,
-        defaultAmount: line.balancingLeg ? null : Number(line.amount) || 0,
-        balancingLeg: line.balancingLeg,
+        defaultAmount: line.amountType === 'FIXED' ? Number(line.amount) || 0 : null,
+        balancingLeg: line.amountType === 'BALANCING',
+        amountType: line.amountType,
+        allocationPercent: line.amountType === 'PERCENT' ? line.allocationPercent : null,
       })),
     };
 
@@ -427,7 +512,7 @@ export class TemplatePosterComponent implements OnInit {
     }
 
     const lines: PostJournalLineRequest[] = [];
-    for (const draft of this.draftLines) {
+    for (const draft of this.draftLines()) {
       const account = this.accounts().find((a) => a.code === draft.accountCode);
       if (!account) {
         this.notifications.error(

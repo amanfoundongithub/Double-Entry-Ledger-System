@@ -3,6 +3,7 @@ export type NormalSide = 'DEBIT' | 'CREDIT';
 export type CashFlowCategory = 'OPERATING' | 'INVESTING' | 'FINANCING' | 'NONE';
 export type EntryStatus = 'POSTED' | 'REVERSED';
 export type PeriodStatus = 'OPEN' | 'CLOSED' | 'LOCKED';
+export type TemplateAllocationType = 'FIXED' | 'PERCENT' | 'BALANCING';
 
 export interface Account {
   id: string;
@@ -258,6 +259,8 @@ export interface TemplateLineDef {
   defaultMemo: string;
   defaultAmount?: number | null;
   balancingLeg: boolean;
+  amountType?: TemplateAllocationType | null;
+  allocationPercent?: number | null;
 }
 
 export interface TemplateResponse {

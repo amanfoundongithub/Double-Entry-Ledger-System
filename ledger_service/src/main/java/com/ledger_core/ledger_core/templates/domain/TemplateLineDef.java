@@ -11,5 +11,14 @@ public record TemplateLineDef(
     CashFlowCategory cashFlowCategory,
     String defaultMemo,
     BigDecimal defaultAmount,
-    boolean balancingLeg
-) {}
+    boolean balancingLeg,
+    TemplateAllocationType amountType,
+    BigDecimal allocationPercent
+) {
+    public TemplateAllocationType effectiveAmountType() {
+        if (amountType != null) {
+            return amountType;
+        }
+        return balancingLeg ? TemplateAllocationType.BALANCING : TemplateAllocationType.FIXED;
+    }
+}
