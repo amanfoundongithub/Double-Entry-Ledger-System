@@ -6,6 +6,7 @@ import {
   CashFlowCategory,
   CreateTemplateRequest,
   JournalEntryResponse,
+  LedgerImpactRow,
   NormalSide,
   PeriodResponse,
   PostJournalEntryRequest,
@@ -103,6 +104,10 @@ export class TemplatePosterComponent implements OnInit {
   readonly baseAmount = signal<number>(100000);
   readonly draftLines = signal<DraftTemplateLine[]>([]);
 
+  // Ledger balance preview state
+  private readonly accountBalances = signal<Map<string, number>>(new Map());
+  private readonly loadingLedgers = signal<Set<string>>(new Set());
+
   // Create template form state
   newCode = '';
   newName = '';
@@ -170,6 +175,70 @@ export class TemplatePosterComponent implements OnInit {
     () => this.totalDebits() > 0 && Math.abs(this.totalDebits() - this.totalCredits()) < 0.005
   );
 
+  readonly ledgerImpact = computed<LedgerImpactRow[]>(() => {
+    const lines = this.draftLines();
+    const acctByCode = new Map(this.accounts().map((a) => [a.code, a]));
+    const balances = this.accountBalances();
+    const loadingSet = this.loadingLedgers();
+
+    const grouped = new Map<
+      string,
+      {
+        accountId: string;
+        accountName: string;
+        normalSide: NormalSide;
+        debitDelta: number;
+        creditDelta: number;
+      }
+    >();
+
+    for (const line of lines) {
+      const amt = Number(line.amount) || 0;
+      const matched = acctByCode.get(line.accountCode);
+      const normalSide: NormalSide =
+        matched?.normalSide ??
+        (line.accountCode.startsWith('1') || line.accountCode.startsWith('5') ? 'DEBIT' : 'CREDIT');
+
+      const existing = grouped.get(line.accountCode) ?? {
+        accountId: matched?.id ?? '',
+        accountName: matched?.name || line.accountName || line.accountCode,
+        normalSide,
+        debitDelta: 0,
+        creditDelta: 0,
+      };
+
+      if (line.side === 'DEBIT') {
+        existing.debitDelta = Number((existing.debitDelta + amt).toFixed(2));
+      } else {
+        existing.creditDelta = Number((existing.creditDelta + amt).toFixed(2));
+      }
+
+      grouped.set(line.accountCode, existing);
+    }
+
+    return Array.from(grouped.entries()).map(([accountCode, agg]) => {
+      const currentBalance = agg.accountId ? (balances.get(agg.accountId) ?? 0) : 0;
+      const netChange =
+        agg.normalSide === 'DEBIT'
+          ? Number((agg.debitDelta - agg.creditDelta).toFixed(2))
+          : Number((agg.creditDelta - agg.debitDelta).toFixed(2));
+      const projectedBalance = Number((currentBalance + netChange).toFixed(2));
+
+      return {
+        accountId: agg.accountId,
+        accountCode,
+        accountName: agg.accountName,
+        normalSide: agg.normalSide,
+        currentBalance,
+        debitDelta: agg.debitDelta,
+        creditDelta: agg.creditDelta,
+        netChange,
+        projectedBalance,
+        loading: agg.accountId ? loadingSet.has(agg.accountId) : false,
+      };
+    });
+  });
+
   readonly selectedPeriod = computed(() =>
     this.periods().find((p) => p.id === this.periodId) ?? null
   );
@@ -191,7 +260,9 @@ export class TemplatePosterComponent implements OnInit {
     this.resetNewTemplateForm();
 
     if (this.accounts().length === 0) {
-      this.api.loadAccounts().subscribe();
+      this.api.loadAccounts().subscribe({
+        next: () => this.refreshAffectedAccountBalances(),
+      });
     }
 
     this.api.loadTemplates().subscribe({
@@ -226,10 +297,52 @@ export class TemplatePosterComponent implements OnInit {
     });
   }
 
-  /**
-   * Loads an existing posted journal entry into the template builder so you can
-   * name it, optionally mark a leg as BALANCING or PERCENT, and save as a template.
-   */
+  refreshAffectedAccountBalances(): void {
+    const lines = this.draftLines();
+    const dateStr = this.postingDate || new Date().toISOString().slice(0, 10);
+    const startStr = `${dateStr.slice(0, 7)}-01`;
+
+    const uniqueAccounts = Array.from(
+      new Map(
+        lines
+          .map((l) => this.accounts().find((a) => a.code === l.accountCode))
+          .filter((a): a is NonNullable<typeof a> => Boolean(a?.id))
+          .map((a) => [a.id, a])
+      ).values()
+    );
+
+    for (const acc of uniqueAccounts) {
+      this.loadingLedgers.update((s) => {
+        const next = new Set(s);
+        next.add(acc.id);
+        return next;
+      });
+
+      this.api.getAccountLedger(acc.id, startStr, dateStr).subscribe({
+        next: (ledger) => {
+          const bal = Number(ledger.closingBalance) || 0;
+          this.accountBalances.update((m) => {
+            const next = new Map(m);
+            next.set(acc.id, bal);
+            return next;
+          });
+          this.loadingLedgers.update((s) => {
+            const next = new Set(s);
+            next.delete(acc.id);
+            return next;
+          });
+        },
+        error: () => {
+          this.loadingLedgers.update((s) => {
+            const next = new Set(s);
+            next.delete(acc.id);
+            return next;
+          });
+        },
+      });
+    }
+  }
+
   importEntryIntoTemplateBuilder(entry: JournalEntryResponse): void {
     this.selectedSourceEntryId.set(entry.id);
     this.showCreateForm.set(true);
@@ -528,6 +641,7 @@ export class TemplatePosterComponent implements OnInit {
 
     this.draftLines.set(mapped);
     this.recalculateAllocations();
+    this.refreshAffectedAccountBalances();
   }
 
   regenerateReference(tpl = this.selectedTemplate()): void {
@@ -679,6 +793,7 @@ export class TemplatePosterComponent implements OnInit {
         this.notifications.success('Journal Entry Posted', `Created ${created.entryNumber}`);
         this.regenerateReference(tpl);
         this.loadRecentEntries();
+        this.refreshAffectedAccountBalances();
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);

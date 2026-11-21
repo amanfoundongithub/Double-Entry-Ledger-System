@@ -484,6 +484,68 @@
           </div>
         </div>
 
+        @if (ledgerImpact().length > 0) {
+          <div class="impact-panel">
+            <div class="impact-head">
+              <h4>Ledger Impact Preview</h4>
+              <span class="impact-hint">Normal-side projected balances before posting</span>
+            </div>
+
+            <div class="lines-table-wrap">
+              <table class="lines-table impact-table">
+                <thead>
+                  <tr>
+                    <th>Account</th>
+                    <th>Normal</th>
+                    <th class="text-right">Current</th>
+                    <th class="text-right">Debit</th>
+                    <th class="text-right">Credit</th>
+                    <th class="text-right">Projected</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of ledgerImpact(); track row.accountCode) {
+                    <tr>
+                      <td>
+                        <div class="acct-cell">
+                          <span class="acct-code mono">{{ row.accountCode }}</span>
+                          <span class="acct-name">{{ row.accountName }}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          class="side-badge mono"
+                          [class.debit]="row.normalSide === 'DEBIT'"
+                          [class.credit]="row.normalSide === 'CREDIT'"
+                        >
+                          {{ row.normalSide }}
+                        </span>
+                      </td>
+                      <td class="text-right mono">
+                        {{ row.loading ? '…' : (row.currentBalance | number: '1.2-2') }}
+                      </td>
+                      <td class="text-right mono">
+                        {{ row.debitDelta > 0 ? ('+' + (row.debitDelta | number: '1.2-2')) : '—' }}
+                      </td>
+                      <td class="text-right mono">
+                        {{ row.creditDelta > 0 ? ('+' + (row.creditDelta | number: '1.2-2')) : '—' }}
+                      </td>
+                      <td class="text-right mono">
+                        <strong
+                          [class.delta-up]="row.netChange > 0"
+                          [class.delta-down]="row.netChange < 0"
+                        >
+                          {{ row.loading ? '…' : (row.projectedBalance | number: '1.2-2') }}
+                        </strong>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
         @if (isSelectedPeriodClosedOrLocked()) {
           <div class="alert-warn">
             Period <strong>{{ selectedPeriod()?.id }}</strong> is currently

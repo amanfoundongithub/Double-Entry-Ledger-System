@@ -27,10 +27,10 @@ export interface CreateAccountRequest {
   normalSide: NormalSide;
   cashFlowCategory: CashFlowCategory;
   cashEquivalent?: boolean;
-  contra?: boolean;                 // Match backend Java record field
+  contra?: boolean;
   currency: string;
-  description?: string | null;      // Match backend Java record field
-  parentAccountId?: string | null;  // Keep optional if backend entity supports it later
+  description?: string | null;
+  parentAccountId?: string | null;
 }
 
 export interface JournalLineResponse {
@@ -284,4 +284,17 @@ export interface CreateTemplateRequest {
   referencePrefix?: string;
   category: TemplateCategory;
   lines: TemplateLineDef[];
+}
+
+export interface LedgerImpactRow {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  normalSide: NormalSide;
+  currentBalance: number;
+  debitDelta: number;
+  creditDelta: number;
+  netChange: number;
+  projectedBalance: number;
+  loading: boolean;
 }

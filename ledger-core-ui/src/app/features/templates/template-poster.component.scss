@@ -676,6 +676,45 @@
   color: #0f172a;
 }
 
+.impact-panel {
+  margin-top: 0.9rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.impact-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+
+  h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #0f172a;
+  }
+}
+
+.impact-hint {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.impact-table th.text-right {
+  text-align: right;
+}
+
+.delta-up {
+  color: #166534;
+}
+
+.delta-down {
+  color: #b91c1c;
+}
+
 .alert-warn {
   margin-top: 0.85rem;
   padding: 0.65rem 0.85rem;
