@@ -7,6 +7,7 @@ import com.ledger_core.ledger_core.accounts.domain.NormalSide;
 import com.ledger_core.ledger_core.accounts.infrastructure.AccountRepository;
 import com.ledger_core.ledger_core.reporting.api.BalanceSheetResponse;
 import com.ledger_core.ledger_core.reporting.api.IncomeStatementResponse;
+import com.ledger_core.ledger_core.reporting.api.StatementLine;
 import com.ledger_core.ledger_core.reporting.api.TrialBalanceResponse;
 import com.ledger_core.ledger_core.reporting.application.StatementEngineService;
 import org.bson.Document;
@@ -135,6 +136,34 @@ class StatementEngineIntegrationTest {
         assertEquals(new BigDecimal("75000.00"), bs.cumulativeUnclosedNetIncome());
         assertEquals(new BigDecimal("125000.00"), bs.totalEquity());
         assertTrue(bs.balanced());
+    }
+
+    @Test
+    @DisplayName("Balance Sheet deducts contra-assets from gross assets")
+    void balanceSheetDeductsContraAssets() {
+        Account equipmentAccount = new Account("acc-1500", "1500", "Equipment", AccountType.ASSET, NormalSide.DEBIT,
+                CashFlowCategory.INVESTING, false, false, "INR", true, null,
+                Instant.parse("2026-11-01T00:00:00Z"), Instant.parse("2026-11-01T00:00:00Z"));
+        Account accumulatedDepreciation = new Account("acc-1510", "1510", "Accumulated Depreciation",
+                AccountType.ASSET, NormalSide.CREDIT, CashFlowCategory.NONE, false, true, "INR", true, null,
+                Instant.parse("2026-11-01T00:00:00Z"), Instant.parse("2026-11-01T00:00:00Z"));
+
+        when(accountRepository.findAll()).thenReturn(
+                List.of(equipmentAccount, accumulatedDepreciation)
+        );
+
+        List<AccountTotalInput> rows = List.of(
+                new AccountTotalInput("acc-1500", new Decimal128(new BigDecimal("100000.00")), new Decimal128(BigDecimal.ZERO)),
+                new AccountTotalInput("acc-1510", new Decimal128(BigDecimal.ZERO), new Decimal128(new BigDecimal("20000.00")))
+        );
+        stubAccountTotals(rows);
+
+        BalanceSheetResponse bs = statementEngineService.getBalanceSheet(Instant.parse("2026-11-30T23:59:59Z"));
+
+        assertEquals(new BigDecimal("80000.00"), bs.totalAssets());
+        assertEquals(new BigDecimal("80000.00"), bs.assets().stream()
+                .map(StatementLine::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
     }
 
     @Test

@@ -33,6 +33,7 @@
     </button>
   </div>
 
+  <!-- 1. TRIAL BALANCE -->
   @if (activeTab() === 'TB' && trialBalance(); as tb) {
     <div class="card">
       <div class="statement-banner">
@@ -56,7 +57,7 @@
         </thead>
         <tbody>
           @for (row of tb.rows; track row.accountId) {
-            <tr>
+            <tr [class.contra-row]="isContra(row)">
               <td class="mono">{{ row.accountCode }}</td>
               <td>
                 <a
@@ -66,15 +67,17 @@
                 >
                   {{ row.accountName }}
                 </a>
-                @if (row.contra) {
-                  <span class="tag">CONTRA</span>
+                @if (isContra(row)) {
+                  <span class="tag tag-contra">CONTRA</span>
                 }
               </td>
               <td>{{ row.accountType }}</td>
               <td class="mono">{{ row.normalSide }}</td>
-              <td class="num mono">{{ +row.totalDebits !== 0 ? (+row.totalDebits | number: '1.2-2') : '—' }}</td>
-              <td class="num mono">{{ +row.totalCredits !== 0 ? (+row.totalCredits | number: '1.2-2') : '—' }}</td>
-              <td class="num mono">{{ +row.netBalance | number: '1.2-2' }}</td>
+              <td class="num mono">{{ toNumber(row.totalDebits) !== 0 ? (toNumber(row.totalDebits) | number: '1.2-2') : '—' }}</td>
+              <td class="num mono">{{ toNumber(row.totalCredits) !== 0 ? (toNumber(row.totalCredits) | number: '1.2-2') : '—' }}</td>
+              <td class="num mono" [class.contra-amt]="isContra(row) || toNumber(row.netBalance) < 0">
+                {{ formatFinancial(row.netBalance, isContra(row)) }}
+              </td>
             </tr>
           } @empty {
             <tr>
@@ -85,8 +88,8 @@
         <tfoot>
           <tr class="grand-total-row">
             <td colspan="4">Totals</td>
-            <td class="num mono">{{ +tb.totalDebits | number: '1.2-2' }}</td>
-            <td class="num mono">{{ +tb.totalCredits | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(tb.totalDebits) | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(tb.totalCredits) | number: '1.2-2' }}</td>
             <td class="num mono">—</td>
           </tr>
         </tfoot>
@@ -94,14 +97,14 @@
     </div>
   }
 
+  <!-- 2. INCOME STATEMENT -->
   @if (activeTab() === 'PNL' && incomeStatement(); as pnl) {
     <div class="card">
       <div class="statement-banner">
         <h3>Income Statement (Profit &amp; Loss)</h3>
-        <span class="net-pill">Net Income: {{ pnl.netIncome | number: '1.2-2' }}</span>
+        <span class="net-pill">Net Income: {{ toNumber(pnl.netIncome) | number: '1.2-2' }}</span>
       </div>
 
-      <!-- 1. REVENUES -->
       <h4 class="section-title">Revenues</h4>
       <table class="data-table">
         <tbody>
@@ -117,7 +120,7 @@
                   {{ r.accountName }}
                 </a>
               </td>
-              <td class="num mono">{{ r.amount | number: '1.2-2' }}</td>
+              <td class="num mono">{{ toNumber(r.amount) | number: '1.2-2' }}</td>
             </tr>
           } @empty {
             <tr>
@@ -127,12 +130,11 @@
           }
           <tr class="subtotal-row">
             <td colspan="2">Total Revenue</td>
-            <td class="num mono">{{ pnl.totalRevenue | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(pnl.totalRevenue) | number: '1.2-2' }}</td>
           </tr>
         </tbody>
       </table>
 
-      <!-- 2. EXPENSES -->
       <h4 class="section-title section-gap">Expenses</h4>
       <table class="data-table">
         <tbody>
@@ -148,7 +150,7 @@
                   {{ e.accountName }}
                 </a>
               </td>
-              <td class="num mono">{{ e.amount | number: '1.2-2' }}</td>
+              <td class="num mono">{{ toNumber(e.amount) | number: '1.2-2' }}</td>
             </tr>
           } @empty {
             <tr>
@@ -158,23 +160,23 @@
           }
           <tr class="subtotal-row">
             <td colspan="2">Total Expenses</td>
-            <td class="num mono">{{ pnl.totalExpenses | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(pnl.totalExpenses) | number: '1.2-2' }}</td>
           </tr>
         </tbody>
       </table>
 
-      <!-- 3. NET INCOME -->
       <table class="data-table final-equation-table">
         <tfoot>
           <tr class="grand-total-row">
             <td colspan="2">Net Income (Total Revenue − Total Expenses)</td>
-            <td class="num mono">{{ pnl.netIncome | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(pnl.netIncome) | number: '1.2-2' }}</td>
           </tr>
         </tfoot>
       </table>
     </div>
   }
 
+  <!-- 3. BALANCE SHEET -->
   @if (activeTab() === 'BS' && balanceSheet(); as bs) {
     <div class="card">
       <div class="statement-banner">
@@ -187,39 +189,49 @@
       <div class="summary-strip">
         <div>
           <span class="k">Total Assets</span>
-          <strong class="mono">{{ bs.totalAssets | number: '1.2-2' }}</strong>
+          <strong class="mono">{{ toNumber(bs.totalAssets) | number: '1.2-2' }}</strong>
         </div>
         <div>
           <span class="k">Total Liabilities</span>
-          <strong class="mono">{{ bs.totalLiabilities | number: '1.2-2' }}</strong>
+          <strong class="mono">{{ toNumber(bs.totalLiabilities) | number: '1.2-2' }}</strong>
         </div>
         <div>
           <span class="k">Unclosed Net Income</span>
-          <strong class="mono">{{ bs.cumulativeUnclosedNetIncome | number: '1.2-2' }}</strong>
+          <strong class="mono">{{ toNumber(bs.cumulativeUnclosedNetIncome) | number: '1.2-2' }}</strong>
         </div>
         <div>
           <span class="k">Total Equity (incl. Unclosed)</span>
-          <strong class="mono">{{ bs.totalEquity | number: '1.2-2' }}</strong>
+          <strong class="mono">{{ toNumber(bs.totalEquity) | number: '1.2-2' }}</strong>
         </div>
       </div>
 
-      <!-- 1. ASSETS SECTION -->
+      <!-- ASSETS SECTION (WITH CONTRA-ASSET DEDUCTION STYLING) -->
       <h4 class="section-title">Assets</h4>
       <table class="data-table">
         <tbody>
           @for (a of bs.assets; track a.accountId) {
-            <tr>
+            <tr [class.contra-row]="isContra(a)">
               <td class="mono">{{ a.accountCode }}</td>
               <td>
-                <a
-                  [routerLink]="['/accounts', a.accountId, 'ledger']"
-                  [queryParams]="ledgerQueryParams()"
-                  class="statement-link"
-                >
-                  {{ a.accountName }}
-                </a>
+                <div class="acct-name-wrap" [class.contra-indent]="isContra(a)">
+                  @if (isContra(a)) {
+                    <span class="muted font-normal">Less:</span>
+                  }
+                  <a
+                    [routerLink]="['/accounts', a.accountId, 'ledger']"
+                    [queryParams]="ledgerQueryParams()"
+                    class="statement-link"
+                  >
+                    {{ a.accountName }}
+                  </a>
+                  @if (isContra(a)) {
+                    <span class="tag tag-contra">CONTRA</span>
+                  }
+                </div>
               </td>
-              <td class="num mono">{{ a.amount | number: '1.2-2' }}</td>
+              <td class="num mono" [class.contra-amt]="isContra(a) || toNumber(a.amount) < 0">
+                {{ formatFinancial(a.amount, isContra(a)) }}
+              </td>
             </tr>
           } @empty {
             <tr>
@@ -233,12 +245,12 @@
         <tfoot>
           <tr class="grand-total-row">
             <td colspan="2">Total Assets</td>
-            <td class="num mono">{{ bs.totalAssets | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(bs.totalAssets) | number: '1.2-2' }}</td>
           </tr>
         </tfoot>
       </table>
 
-      <!-- 2. LIABILITIES SECTION -->
+      <!-- LIABILITIES SECTION -->
       <h4 class="section-title section-gap">Liabilities</h4>
       <table class="data-table">
         <tbody>
@@ -254,7 +266,7 @@
                   {{ l.accountName }}
                 </a>
               </td>
-              <td class="num mono">{{ l.amount | number: '1.2-2' }}</td>
+              <td class="num mono">{{ toNumber(l.amount) | number: '1.2-2' }}</td>
             </tr>
           } @empty {
             <tr>
@@ -264,12 +276,12 @@
           }
           <tr class="subtotal-row">
             <td colspan="2">Total Liabilities</td>
-            <td class="num mono">{{ bs.totalLiabilities | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(bs.totalLiabilities) | number: '1.2-2' }}</td>
           </tr>
         </tbody>
       </table>
 
-      <!-- 3. EQUITY SECTION -->
+      <!-- EQUITY SECTION -->
       <h4 class="section-title section-gap">Owner's / Shareholders' Equity</h4>
       <table class="data-table">
         <tbody>
@@ -285,7 +297,7 @@
                   {{ eq.accountName }}
                 </a>
               </td>
-              <td class="num mono">{{ eq.amount | number: '1.2-2' }}</td>
+              <td class="num mono">{{ toNumber(eq.amount) | number: '1.2-2' }}</td>
             </tr>
           }
           <tr>
@@ -294,22 +306,21 @@
               Cumulative Unclosed Net Income
               <span class="tag">Retained Earnings</span>
             </td>
-            <td class="num mono">{{ bs.cumulativeUnclosedNetIncome | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(bs.cumulativeUnclosedNetIncome) | number: '1.2-2' }}</td>
           </tr>
           <tr class="subtotal-row">
             <td colspan="2">Total Equity</td>
-            <td class="num mono">{{ bs.totalEquity | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(bs.totalEquity) | number: '1.2-2' }}</td>
           </tr>
         </tbody>
       </table>
 
-      <!-- 4. TOTAL LIABILITIES & EQUITY RECONCILIATION -->
       <table class="data-table final-equation-table">
         <tfoot>
           <tr class="grand-total-row">
             <td colspan="2">Total Liabilities &amp; Equity</td>
             <td class="num mono">
-              {{ (+bs.totalLiabilities + +bs.totalEquity) | number: '1.2-2' }}
+              {{ (toNumber(bs.totalLiabilities) + toNumber(bs.totalEquity)) | number: '1.2-2' }}
             </td>
           </tr>
         </tfoot>
@@ -317,6 +328,7 @@
     </div>
   }
 
+  <!-- 4. CASH FLOW STATEMENT -->
   @if (activeTab() === 'CF' && cashFlow(); as cf) {
     <div class="card">
       <div class="statement-banner">
@@ -329,27 +341,26 @@
       <div class="summary-strip">
         <div>
           <span class="k">Beginning Cash</span>
-          <strong class="mono">{{ cf.beginningCashBalance | number: '1.2-2' }}</strong>
+          <strong class="mono">{{ toNumber(cf.beginningCashBalance) | number: '1.2-2' }}</strong>
         </div>
         <div>
           <span class="k">Operating Cash Flow</span>
-          <strong class="mono">{{ cf.operatingCashFlow | number: '1.2-2' }}</strong>
+          <strong class="mono">{{ toNumber(cf.operatingCashFlow) | number: '1.2-2' }}</strong>
         </div>
         <div>
           <span class="k">Investing Cash Flow</span>
-          <strong class="mono">{{ cf.investingCashFlow | number: '1.2-2' }}</strong>
+          <strong class="mono">{{ toNumber(cf.investingCashFlow) | number: '1.2-2' }}</strong>
         </div>
         <div>
           <span class="k">Financing Cash Flow</span>
-          <strong class="mono">{{ cf.financingCashFlow | number: '1.2-2' }}</strong>
+          <strong class="mono">{{ toNumber(cf.financingCashFlow) | number: '1.2-2' }}</strong>
         </div>
         <div>
           <span class="k">Ending Cash</span>
-          <strong class="mono">{{ cf.endingCashBalance | number: '1.2-2' }}</strong>
+          <strong class="mono">{{ toNumber(cf.endingCashBalance) | number: '1.2-2' }}</strong>
         </div>
       </div>
 
-      <!-- 1. OPERATING ACTIVITIES -->
       <h4 class="section-title">Operating Activities</h4>
       <table class="data-table">
         <tbody>
@@ -365,7 +376,7 @@
                   {{ item.accountName }}
                 </a>
               </td>
-              <td class="num mono">{{ item.amount | number: '1.2-2' }}</td>
+              <td class="num mono">{{ toNumber(item.amount) | number: '1.2-2' }}</td>
             </tr>
           } @empty {
             <tr>
@@ -375,12 +386,11 @@
           }
           <tr class="subtotal-row">
             <td colspan="2">Net Cash from Operating Activities</td>
-            <td class="num mono">{{ cf.operatingCashFlow | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(cf.operatingCashFlow) | number: '1.2-2' }}</td>
           </tr>
         </tbody>
       </table>
 
-      <!-- 2. INVESTING ACTIVITIES -->
       <h4 class="section-title section-gap">Investing Activities</h4>
       <table class="data-table">
         <tbody>
@@ -396,7 +406,7 @@
                   {{ item.accountName }}
                 </a>
               </td>
-              <td class="num mono">{{ item.amount | number: '1.2-2' }}</td>
+              <td class="num mono">{{ toNumber(item.amount) | number: '1.2-2' }}</td>
             </tr>
           } @empty {
             <tr>
@@ -406,12 +416,11 @@
           }
           <tr class="subtotal-row">
             <td colspan="2">Net Cash from Investing Activities</td>
-            <td class="num mono">{{ cf.investingCashFlow | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(cf.investingCashFlow) | number: '1.2-2' }}</td>
           </tr>
         </tbody>
       </table>
 
-      <!-- 3. FINANCING ACTIVITIES -->
       <h4 class="section-title section-gap">Financing Activities</h4>
       <table class="data-table">
         <tbody>
@@ -427,7 +436,7 @@
                   {{ item.accountName }}
                 </a>
               </td>
-              <td class="num mono">{{ item.amount | number: '1.2-2' }}</td>
+              <td class="num mono">{{ toNumber(item.amount) | number: '1.2-2' }}</td>
             </tr>
           } @empty {
             <tr>
@@ -437,31 +446,29 @@
           }
           <tr class="subtotal-row">
             <td colspan="2">Net Cash from Financing Activities</td>
-            <td class="num mono">{{ cf.financingCashFlow | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(cf.financingCashFlow) | number: '1.2-2' }}</td>
           </tr>
         </tbody>
       </table>
 
-      <!-- 4. CASH RECONCILIATION SUMMARY -->
       <table class="data-table final-equation-table">
         <tbody>
           <tr>
             <td colspan="2">Net Increase / (Decrease) in Cash</td>
-            <td class="num mono">{{ cf.netCashChange | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(cf.netCashChange) | number: '1.2-2' }}</td>
           </tr>
           <tr>
             <td colspan="2">Beginning Cash Balance</td>
-            <td class="num mono">{{ cf.beginningCashBalance | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(cf.beginningCashBalance) | number: '1.2-2' }}</td>
           </tr>
         </tbody>
         <tfoot>
           <tr class="grand-total-row">
             <td colspan="2">Ending Cash Balance</td>
-            <td class="num mono">{{ cf.endingCashBalance | number: '1.2-2' }}</td>
+            <td class="num mono">{{ toNumber(cf.endingCashBalance) | number: '1.2-2' }}</td>
           </tr>
         </tfoot>
       </table>
     </div>
   }
-
 </section>
