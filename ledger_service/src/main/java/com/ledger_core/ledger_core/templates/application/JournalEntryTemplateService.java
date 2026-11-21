@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class JournalEntryTemplateService {
@@ -40,6 +41,14 @@ public class JournalEntryTemplateService {
                 .map(JournalEntryTemplateDocument::toDomain)
                 .orElseThrow(() -> new DomainException("Template not found: " + id));
         return TemplateResponse.fromDomain(template);
+    }
+
+    @Transactional
+    public void deleteTemplate(String id) {
+        if (!templateRepo.existsById(id)) {
+            throw new DomainException("Template not found with id: " + id);
+        }
+        templateRepo.deleteById(id);
     }
 
     public TemplateResponse createCustomTemplate(CreateTemplateRequest req) {

@@ -190,6 +190,14 @@ export class LedgerApiService {
     );
   }
 
+  deleteTemplate(templateId: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/templates/${encodeURIComponent(templateId)}`).pipe(
+      tap(() => {
+        this.templates.update((prev) => prev.filter((t) => t.id !== templateId));
+      })
+    );
+  }
+
   private syncPeriod(updated: PeriodResponse): void {
     this.periods.update((list) => list.map((p) => (p.id === updated.id ? updated : p)));
   }

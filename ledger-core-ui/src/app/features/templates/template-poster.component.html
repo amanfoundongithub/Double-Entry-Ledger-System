@@ -335,9 +335,26 @@
             <h3>{{ tpl.name }}</h3>
             <span class="code-chip mono">{{ tpl.code }}</span>
           </div>
-          <span class="balance-pill" [class.ok]="isBalanced()" [class.warn]="!isBalanced()">
-            {{ isBalanced() ? '✓ Balanced' : '• Unbalanced' }}
-          </span>
+          <div class="editor-head-actions">
+            <button
+              type="button"
+              class="ghost-btn"
+              (click)="cloneSelectedTemplate()"
+            >
+              Clone
+            </button>
+            <button
+              type="button"
+              class="danger-btn"
+              [disabled]="deletingTemplate()"
+              (click)="deleteSelectedTemplate()"
+            >
+              {{ deletingTemplate() ? 'Deleting...' : 'Delete' }}
+            </button>
+            <span class="balance-pill" [class.ok]="isBalanced()" [class.warn]="!isBalanced()">
+              {{ isBalanced() ? '✓ Balanced' : '• Unbalanced' }}
+            </span>
+          </div>
         </div>
 
         <div class="meta-grid">

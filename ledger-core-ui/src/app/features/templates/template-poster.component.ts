@@ -93,6 +93,7 @@ export class TemplatePosterComponent implements OnInit {
   readonly showCreateForm = signal<boolean>(false);
   readonly submitting = signal<boolean>(false);
   readonly savingTemplate = signal<boolean>(false);
+  readonly deletingTemplate = signal<boolean>(false);
 
   // Poster form state
   reference = '';
@@ -278,6 +279,65 @@ export class TemplatePosterComponent implements OnInit {
     if (found) {
       this.importEntryIntoTemplateBuilder(found);
     }
+  }
+
+  cloneSelectedTemplate(): void {
+    const tpl = this.selectedTemplate();
+    if (!tpl) {
+      return;
+    }
+
+    this.selectedSourceEntryId.set('');
+    this.showCreateForm.set(true);
+    this.newCode = `${tpl.code}_COPY`;
+    this.newName = `${tpl.name} (Copy)`;
+    this.newDescription = tpl.description;
+    this.newDefaultDescription = tpl.defaultDescription;
+    this.newReferencePrefix = tpl.referencePrefix || 'JE-2026-';
+    this.newCategory = tpl.category;
+
+    this.newLines = tpl.lines.map((line) => {
+      const allocType = this.resolveLineAllocationType(line);
+      const matchedAcc = this.accounts().find((a) => a.code === line.accountCode);
+      return {
+        accountCode: line.accountCode,
+        accountName: matchedAcc?.name || line.accountName || line.accountCode,
+        side: line.side,
+        cashFlowCategory: line.cashFlowCategory,
+        defaultMemo: line.defaultMemo || '',
+        defaultAmount: allocType === 'FIXED' ? (line.defaultAmount ?? null) : null,
+        amountType: allocType,
+        allocationPercent: allocType === 'PERCENT' ? (line.allocationPercent ?? null) : null,
+      };
+    });
+
+    this.notifications.success('Template Cloned', `Loaded ${tpl.code} into builder as a copy.`);
+  }
+
+  deleteSelectedTemplate(): void {
+    const tpl = this.selectedTemplate();
+    if (!tpl || this.deletingTemplate()) {
+      return;
+    }
+
+    this.deletingTemplate.set(true);
+    this.api.deleteTemplate(tpl.id).subscribe({
+      next: () => {
+        this.deletingTemplate.set(false);
+        this.notifications.success('Template Deleted', `Removed ${tpl.code}`);
+        const remaining = this.availableTemplates();
+        if (remaining.length > 0) {
+          this.selectTemplate(remaining[0]);
+        } else {
+          this.selectedTemplate.set(null);
+          this.draftLines.set([]);
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        this.deletingTemplate.set(false);
+        this.notifications.fromHttpError(err, 'Delete Template Failed');
+      },
+    });
   }
 
   private resolveLineAllocationType(line: TemplateLineDef): TemplateAllocationType {
