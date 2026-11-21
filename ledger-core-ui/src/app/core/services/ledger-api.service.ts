@@ -8,11 +8,13 @@ import {
   CashFlowStatementResponse,
   CreateAccountRequest,
   CreatePeriodRequest,
+  CreateTemplateRequest,
   IncomeStatementResponse,
   JournalEntryResponse,
   PeriodResponse,
   PostJournalEntryRequest,
   ReverseJournalEntryRequest,
+  TemplateResponse,
   TrialBalanceResponse,
 } from '../models/ledger.models';
 
@@ -24,6 +26,7 @@ export class LedgerApiService {
   readonly accounts = signal<Account[]>([]);
   readonly periods = signal<PeriodResponse[]>([]);
   readonly recentEntries = signal<JournalEntryResponse[]>([]);
+  readonly templates = signal<TemplateResponse[]>([]);
   readonly loading = signal<boolean>(false);
 
   loadAccounts(): Observable<Account[]> {
@@ -54,6 +57,17 @@ export class LedgerApiService {
 
   getJournalEntry(entryId: string): Observable<JournalEntryResponse> {
     return this.http.get<JournalEntryResponse>(`${this.baseUrl}/journal-entries/${entryId}`);
+  }
+
+  getJournalEntryByNumber(entryNumber: string): Observable<JournalEntryResponse> {
+    return this.http.get<JournalEntryResponse>(`${this.baseUrl}/journal-entries/number/${encodeURIComponent(entryNumber)}`);
+  }
+
+  loadJournalEntries(limit = 25): Observable<JournalEntryResponse[]> {
+    const params = new HttpParams().set('limit', limit);
+    return this.http.get<JournalEntryResponse[]>(`${this.baseUrl}/journal-entries/recent`, { params }).pipe(
+      tap((entries) => this.recentEntries.set(entries))
+    );
   }
 
   reverseJournalEntry(
@@ -156,6 +170,45 @@ export class LedgerApiService {
     const params = new HttpParams().set('startDate', startDate).set('endDate', endDate);
     return this.http.get<AccountLedgerResponse>(`${this.baseUrl}/accounts/${accountId}/ledger`, { params });
   }
+
+  loadTemplates(): Observable<TemplateResponse[]> {
+    this.loading.set(true);
+    return this.http.get<TemplateResponse[]>(`${this.baseUrl}/templates`).pipe(
+      tap({
+        next: (items) => {
+          this.templates.set(items);
+          this.loading.set(false);
+        },
+        error: () => this.loading.set(false),
+      })
+    );
+  }
+
+  createTemplate(request: CreateTemplateRequest): Observable<TemplateResponse> {
+    return this.http.post<TemplateResponse>(`${this.baseUrl}/templates`, request).pipe(
+      tap((created) => this.templates.update((prev) => [...prev, created]))
+    );
+  }
+
+  deleteTemplate(templateId: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/templates/${encodeURIComponent(templateId)}`).pipe(
+      tap(() => {
+        this.templates.update((prev) => prev.filter((t) => t.id !== templateId));
+      })
+    );
+  }
+
+  advanceTemplateSchedule(templateId: string): Observable<TemplateResponse> {
+  return this.http
+    .post<TemplateResponse>(`${this.baseUrl}/templates/${encodeURIComponent(templateId)}/advance-schedule`, {})
+    .pipe(
+      tap((updated) => {
+        this.templates.update((prev) =>
+          prev.map((t) => (t.id === updated.id ? updated : t))
+        );
+      })
+    );
+}
 
   private syncPeriod(updated: PeriodResponse): void {
     this.periods.update((list) => list.map((p) => (p.id === updated.id ? updated : p)));

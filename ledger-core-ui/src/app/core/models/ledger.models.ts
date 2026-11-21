@@ -3,6 +3,8 @@ export type NormalSide = 'DEBIT' | 'CREDIT';
 export type CashFlowCategory = 'OPERATING' | 'INVESTING' | 'FINANCING' | 'NONE';
 export type EntryStatus = 'POSTED' | 'REVERSED';
 export type PeriodStatus = 'OPEN' | 'CLOSED' | 'LOCKED';
+export type TemplateAllocationType = 'FIXED' | 'PERCENT' | 'BALANCING';
+export type ScheduleFrequency = 'NONE' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
 
 export interface Account {
   id: string;
@@ -26,10 +28,10 @@ export interface CreateAccountRequest {
   normalSide: NormalSide;
   cashFlowCategory: CashFlowCategory;
   cashEquivalent?: boolean;
-  contra?: boolean;                 // Match backend Java record field
+  contra?: boolean;
   currency: string;
-  description?: string | null;      // Match backend Java record field
-  parentAccountId?: string | null;  // Keep optional if backend entity supports it later
+  description?: string | null;
+  parentAccountId?: string | null;
 }
 
 export interface JournalLineResponse {
@@ -246,4 +248,63 @@ export interface JournalEntryDetailsResponse {
   totalAmount?: number | string;
   createdAt?: string | null;
   createdBy?: string | null;
+}
+
+export type TemplateCategory = 'REVENUE' | 'EXPENSE' | 'ASSET' | 'EQUITY' | 'ADJUSTMENT';
+
+export interface TemplateLineDef {
+  accountCode: string;
+  accountName: string;
+  side: NormalSide;
+  cashFlowCategory: CashFlowCategory;
+  defaultMemo: string;
+  defaultAmount?: number | null;
+  balancingLeg: boolean;
+  amountType?: TemplateAllocationType | null;
+  allocationPercent?: number | null;
+}
+
+export interface TemplateResponse {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  defaultDescription: string;
+  referencePrefix: string;
+  category: TemplateCategory;
+  systemPreset: boolean;
+  lines: TemplateLineDef[];
+  schedule?: TemplateScheduleDef | null;
+  createdAt: string;
+}
+
+export interface CreateTemplateRequest {
+  code: string;
+  name: string;
+  description: string;
+  defaultDescription: string;
+  referencePrefix?: string;
+  category: TemplateCategory;
+  lines: TemplateLineDef[];
+  schedule?: TemplateScheduleDef | null;
+}
+
+export interface LedgerImpactRow {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  normalSide: NormalSide;
+  currentBalance: number;
+  debitDelta: number;
+  creditDelta: number;
+  netChange: number;
+  projectedBalance: number;
+  loading: boolean;
+}
+
+export interface TemplateScheduleDef {
+  frequency: ScheduleFrequency;
+  interval?: number | null; // default 1
+  nextRunDate?: string | null; // YYYY-MM-DD
+  autoAdvanceOnPost?: boolean; // default true
 }

@@ -1,0 +1,661 @@
+<section class="tpl-page">
+  <header class="tpl-header">
+    <div>
+      <h2>Journal Entry Templates</h2>
+      <p class="tpl-subtitle">
+        Instantiate balanced multi-line entries from system presets or custom templates.
+      </p>
+    </div>
+
+    <div class="header-right">
+      <div class="category-pills" role="tablist" aria-label="Template categories">
+        @for (cat of categories; track cat) {
+          <button
+            type="button"
+            class="pill-btn"
+            [class.active]="selectedCategory() === cat"
+            (click)="selectedCategory.set(cat)"
+          >
+            {{ cat }}
+          </button>
+        }
+      </div>
+
+      <button type="button" class="primary-btn" (click)="toggleCreateForm()">
+        {{ showCreateForm() ? 'Close Builder' : '+ Create Template' }}
+      </button>
+    </div>
+  </header>
+
+  @if (showCreateForm()) {
+    <div class="card create-panel">
+      <div class="editor-head">
+        <div>
+          <h3>Create Custom Template</h3>
+          <span class="tpl-subtitle">Define a reusable multi-line blueprint persisted to MongoDB or clone a posted entry.</span>
+        </div>
+        <button type="button" class="ghost-btn" (click)="resetNewTemplateForm()">Reset</button>
+      </div>
+
+      @if (recentEntries().length > 0) {
+        <div class="import-entry-bar">
+          <label for="source-entry-select">Clone from Posted Entry</label>
+          <select
+            id="source-entry-select"
+            [ngModel]="selectedSourceEntryId()"
+            (ngModelChange)="onSourceEntrySelected($event)"
+          >
+            <option value="">— Select an existing journal entry —</option>
+            @for (entry of recentEntries(); track entry.id) {
+              <option [value]="entry.id">
+                {{ entry.entryNumber }} · {{ entry.reference || 'No Ref' }} — {{ entry.description }}
+              </option>
+            }
+          </select>
+        </div>
+      }
+
+      <div class="meta-grid">
+        <div class="field">
+          <label for="new-code">Template Code *</label>
+          <input
+            id="new-code"
+            type="text"
+            class="mono"
+            [(ngModel)]="newCode"
+            placeholder="e.g. GST_INVOICE_SPLIT"
+          />
+        </div>
+
+        <div class="field">
+          <label for="new-name">Template Name *</label>
+          <input
+            id="new-name"
+            type="text"
+            [(ngModel)]="newName"
+            placeholder="e.g. Taxed Invoice Split"
+          />
+        </div>
+
+        <div class="field">
+          <label for="new-cat">Category</label>
+          <select id="new-cat" [(ngModel)]="newCategory">
+            @for (cat of templateCategories; track cat) {
+              <option [value]="cat">{{ cat }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="new-prefix">Reference Prefix</label>
+          <input
+            id="new-prefix"
+            type="text"
+            class="mono"
+            [(ngModel)]="newReferencePrefix"
+            placeholder="INV-2026-"
+          />
+        </div>
+
+        <div class="field field-span-2">
+          <label for="new-default-desc">Default Entry Description *</label>
+          <input
+            id="new-default-desc"
+            type="text"
+            [(ngModel)]="newDefaultDescription"
+            placeholder="e.g. Invoice with percentage tax/split allocation"
+          />
+        </div>
+
+        <div class="field field-wide">
+          <label for="new-desc">Notes / Description</label>
+          <input
+            id="new-desc"
+            type="text"
+            [(ngModel)]="newDescription"
+            placeholder="Optional description shown on the template card"
+          />
+        </div>
+      </div>
+
+      <div class="schedule-builder-box">
+        <div class="meta-grid schedule-grid">
+          <div class="field">
+            <label for="new-sched-freq">Recurring Schedule</label>
+            <select id="new-sched-freq" [(ngModel)]="newScheduleFrequency">
+              @for (freq of scheduleFrequencies; track freq) {
+                <option [value]="freq">{{ freq }}</option>
+              }
+            </select>
+          </div>
+
+          @if (newScheduleFrequency !== 'NONE') {
+            <div class="field">
+              <label for="new-sched-interval">Interval</label>
+              <input
+                id="new-sched-interval"
+                type="number"
+                class="mono"
+                min="1"
+                step="1"
+                [(ngModel)]="newScheduleInterval"
+              />
+            </div>
+
+            <div class="field">
+              <label for="new-sched-next">Next Run Date *</label>
+              <input
+                id="new-sched-next"
+                type="date"
+                [(ngModel)]="newScheduleNextRunDate"
+              />
+            </div>
+
+            <div class="field field-wide">
+              <label class="checkbox-inline">
+                <input type="checkbox" [(ngModel)]="newScheduleAutoAdvance" />
+                <span>Auto-advance next run date after posting</span>
+              </label>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="builder-lines-head">
+        <h4>Template Lines</h4>
+        <button type="button" class="ghost-btn" (click)="addNewTemplateLine()">+ Add Line</button>
+      </div>
+
+      <div class="lines-table-wrap">
+        <table class="lines-table">
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Side</th>
+              <th>Cash Flow</th>
+              <th>Default Memo</th>
+              <th>Allocation</th>
+              <th>Amt / %</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of newLines; track $index) {
+              <tr>
+                <td>
+                  @if (accounts().length > 0) {
+                    <select
+                      [(ngModel)]="line.accountCode"
+                      (ngModelChange)="onNewLineAccountChange(line)"
+                    >
+                      @for (acc of accounts(); track acc.id) {
+                        <option [value]="acc.code">{{ acc.code }} — {{ acc.name }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <input
+                      type="text"
+                      class="mono code-input"
+                      [(ngModel)]="line.accountCode"
+                      placeholder="1010"
+                    />
+                  }
+                </td>
+                <td>
+                  <select [(ngModel)]="line.side">
+                    <option value="DEBIT">DEBIT</option>
+                    <option value="CREDIT">CREDIT</option>
+                  </select>
+                </td>
+                <td>
+                  <select [(ngModel)]="line.cashFlowCategory">
+                    @for (cf of cashFlowCategories; track cf) {
+                      <option [value]="cf">{{ cf }}</option>
+                    }
+                  </select>
+                </td>
+                <td>
+                  <input
+                    type="text"
+                    class="memo-input"
+                    [(ngModel)]="line.defaultMemo"
+                    placeholder="Memo..."
+                  />
+                </td>
+                <td>
+                  <select
+                    [(ngModel)]="line.amountType"
+                    (ngModelChange)="onNewLineAllocationTypeChange(line)"
+                  >
+                    @for (t of allocationTypes; track t) {
+                      <option [value]="t">{{ t }}</option>
+                    }
+                  </select>
+                </td>
+                <td>
+                  @if (line.amountType === 'FIXED') {
+                    <input
+                      type="number"
+                      class="amt-input mono"
+                      min="0"
+                      step="0.01"
+                      [(ngModel)]="line.defaultAmount"
+                      placeholder="0.00"
+                    />
+                  } @else if (line.amountType === 'PERCENT') {
+                    <input
+                      type="number"
+                      class="amt-input mono"
+                      min="0.01"
+                      max="100"
+                      step="0.01"
+                      [(ngModel)]="line.allocationPercent"
+                      placeholder="18"
+                    />
+                  } @else {
+                    <span class="auto-badge">AUTO</span>
+                  }
+                </td>
+                <td class="text-right">
+                  @if (newLines.length > 2) {
+                    <button
+                      type="button"
+                      class="ghost-btn"
+                      (click)="removeNewTemplateLine($index)"
+                      title="Remove line"
+                    >
+                      ✕
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="footer-actions">
+        <button type="button" class="secondary-btn" (click)="showCreateForm.set(false)">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="primary-btn"
+          [disabled]="savingTemplate()"
+          (click)="submitNewTemplate()"
+        >
+          {{ savingTemplate() ? 'Creating...' : 'Save Template' }}
+        </button>
+      </div>
+    </div>
+  }
+
+  <div class="tpl-workspace">
+    <!-- Left Column: Searchable & Paginated Template Selector -->
+    <aside class="tpl-sidebar card">
+      <div class="sidebar-head">
+        <h3>Available Templates</h3>
+        <div class="sidebar-head-right">
+          @if (dueTemplatesCount() > 0) {
+            <button
+              type="button"
+              class="due-filter-btn"
+              [class.active]="dueOnly()"
+              (click)="dueOnly.set(!dueOnly())"
+            >
+              Due ({{ dueTemplatesCount() }})
+            </button>
+          }
+          <span class="count-badge">{{ filteredTemplates().length }}</span>
+        </div>
+      </div>
+
+      <div class="search-box">
+        <input
+          type="search"
+          class="search-input"
+          [ngModel]="searchQuery()"
+          (ngModelChange)="searchQuery.set($event)"
+          placeholder="Search name, code, or account (e.g. 1010)..."
+          aria-label="Search templates"
+        />
+        @if (searchQuery()) {
+          <button
+            type="button"
+            class="clear-search-btn"
+            (click)="searchQuery.set('')"
+            title="Clear search"
+          >
+            ✕
+          </button>
+        }
+      </div>
+
+      <div class="tpl-cards">
+        @for (tpl of pagedTemplates(); track tpl.id) {
+          <button
+            type="button"
+            class="tpl-card"
+            [class.selected]="selectedTemplate()?.id === tpl.id"
+            (click)="selectTemplate(tpl)"
+          >
+            <div class="tpl-card-top">
+              <span class="tpl-name">{{ tpl.name }}</span>
+              <div class="tpl-card-badges">
+                @if (isTemplateDue(tpl)) {
+                  <span class="due-badge">DUE</span>
+                }
+                <span class="cat-badge" [attr.data-cat]="tpl.category">{{ tpl.category }}</span>
+              </div>
+            </div>
+            <p class="tpl-desc">{{ tpl.description }}</p>
+            <div class="tpl-card-meta mono">
+              <span>{{ tpl.code }}</span>
+              @if (tpl.schedule?.frequency && tpl.schedule?.frequency !== 'NONE') {
+                <span>{{ tpl.schedule?.frequency }} · {{ tpl.schedule?.nextRunDate }}</span>
+              } @else {
+                <span>{{ tpl.lines.length }} legs</span>
+              }
+            </div>
+          </button>
+        } @empty {
+          <div class="empty-state">
+            <p class="empty-msg">No templates match your filter.</p>
+            <button type="button" class="ghost-btn" (click)="clearFilters()">Reset Filters</button>
+          </div>
+        }
+      </div>
+
+      @if (filteredTemplates().length > pageSize) {
+        <div class="pagination-bar">
+          <button
+            type="button"
+            class="page-btn"
+            [disabled]="currentPage() <= 1"
+            (click)="goToPage(currentPage() - 1)"
+          >
+            Prev
+          </button>
+          <span class="page-info mono">
+            Page {{ currentPage() }} of {{ totalPages() }}
+          </span>
+          <button
+            type="button"
+            class="page-btn"
+            [disabled]="currentPage() >= totalPages()"
+            (click)="goToPage(currentPage() + 1)"
+          >
+            Next
+          </button>
+        </div>
+      }
+    </aside>
+
+    <!-- Right Column: Entry Form & Auto-Balancing Lines -->
+    @if (selectedTemplate(); as tpl) {
+      <div class="tpl-editor card">
+        <div class="editor-head">
+          <div>
+            <h3>{{ tpl.name }}</h3>
+            <span class="code-chip mono">{{ tpl.code }}</span>
+          </div>
+          <div class="editor-head-actions">
+            <button
+              type="button"
+              class="ghost-btn"
+              (click)="cloneSelectedTemplate()"
+            >
+              Clone
+            </button>
+            <button
+              type="button"
+              class="danger-btn"
+              [disabled]="deletingTemplate()"
+              (click)="deleteSelectedTemplate()"
+            >
+              {{ deletingTemplate() ? 'Deleting...' : 'Delete' }}
+            </button>
+            <span class="balance-pill" [class.ok]="isBalanced()" [class.warn]="!isBalanced()">
+              {{ isBalanced() ? '✓ Balanced' : '• Unbalanced' }}
+            </span>
+          </div>
+        </div>
+
+        @if (tpl.schedule?.frequency && tpl.schedule?.frequency !== 'NONE') {
+          <div class="schedule-banner" [class.is-due]="isTemplateDue(tpl)">
+            <div class="schedule-banner-info mono">
+              <span>Schedule: <strong>{{ tpl.schedule?.frequency }}</strong> (every {{ tpl.schedule?.interval || 1 }})</span>
+              <span>Next Run: <strong>{{ tpl.schedule?.nextRunDate }}</strong></span>
+              @if (isTemplateDue(tpl)) {
+                <span class="due-badge">DUE FOR POSTING</span>
+              }
+            </div>
+            <button
+              type="button"
+              class="ghost-btn"
+              (click)="advanceSelectedTemplateSchedule()"
+            >
+              Advance Date
+            </button>
+          </div>
+        }
+
+        <div class="meta-grid">
+          <div class="field">
+            <label for="tpl-ref">Reference</label>
+            <div class="ref-group">
+              <input id="tpl-ref" type="text" [(ngModel)]="reference" class="mono" />
+              <button
+                type="button"
+                class="ghost-btn"
+                title="Generate new reference"
+                (click)="regenerateReference(tpl)"
+              >
+                New #
+              </button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="tpl-period">Accounting Period</label>
+            <select id="tpl-period" [(ngModel)]="periodId">
+              <option value="">Auto-resolve by posting date</option>
+              @for (p of periods(); track p.id) {
+                <option [value]="p.id">{{ p.id }} · {{ p.status }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="tpl-date">Posting Date</label>
+            <input id="tpl-date" type="date" [(ngModel)]="postingDate" />
+          </div>
+
+          <div class="field field-wide">
+            <label for="tpl-desc">Journal Description</label>
+            <input id="tpl-desc" type="text" [(ngModel)]="description" />
+          </div>
+        </div>
+
+        @if (hasPercentLegs()) {
+          <div class="base-amt-bar">
+            <label for="tpl-base-amt">Base Amount (for % legs)</label>
+            <input
+              id="tpl-base-amt"
+              type="number"
+              class="amt-input mono"
+              min="0"
+              step="0.01"
+              [ngModel]="baseAmount()"
+              (ngModelChange)="onBaseAmountChange($event)"
+            />
+          </div>
+        }
+
+        <div class="lines-table-wrap">
+          <table class="lines-table">
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th>Side</th>
+                <th>Cash Flow</th>
+                <th>Memo</th>
+                <th class="col-amt">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of draftLines(); track $index) {
+                <tr [class.balancer-row]="line.amountType === 'BALANCING' || line.amountType === 'PERCENT'">
+                  <td>
+                    <div class="acct-cell">
+                      <span class="acct-code mono">{{ line.accountCode }}</span>
+                      <span class="acct-name">{{ line.accountName }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span
+                      class="side-badge mono"
+                      [class.debit]="line.side === 'DEBIT'"
+                      [class.credit]="line.side === 'CREDIT'"
+                    >
+                      {{ line.side }}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="cf-tag mono">{{ line.cashFlowCategory }}</span>
+                  </td>
+                  <td>
+                    <input
+                      type="text"
+                      class="memo-input"
+                      [ngModel]="line.memo"
+                      (ngModelChange)="updateLineMemo($index, $event)"
+                      placeholder="Line memo..."
+                    />
+                  </td>
+                  <td class="col-amt">
+                    <div class="amt-wrap">
+                      <input
+                        type="number"
+                        class="amt-input mono"
+                        min="0"
+                        step="0.01"
+                        [ngModel]="line.amount"
+                        [disabled]="line.amountType !== 'FIXED'"
+                        (ngModelChange)="updateLineAmount($index, $event)"
+                      />
+                      @if (line.amountType === 'PERCENT') {
+                        <span class="pct-badge mono" title="Calculated from base amount">
+                          {{ line.allocationPercent }}%
+                        </span>
+                      } @else if (line.amountType === 'BALANCING') {
+                        <span class="auto-badge" title="Auto-calculated to balance entry">AUTO</span>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="totals-bar">
+          <div class="totals-label">Entry Totals</div>
+          <div class="totals-figures mono">
+            <span>Debits: <strong>{{ totalDebits() | number: '1.2-2' }}</strong></span>
+            <span>Credits: <strong>{{ totalCredits() | number: '1.2-2' }}</strong></span>
+          </div>
+        </div>
+
+        @if (ledgerImpact().length > 0) {
+          <div class="impact-panel">
+            <div class="impact-head">
+              <h4>Ledger Impact Preview</h4>
+              <span class="impact-hint">Normal-side projected balances before posting</span>
+            </div>
+
+            <div class="lines-table-wrap">
+              <table class="lines-table impact-table">
+                <thead>
+                  <tr>
+                    <th>Account</th>
+                    <th>Normal</th>
+                    <th class="text-right">Current</th>
+                    <th class="text-right">Debit</th>
+                    <th class="text-right">Credit</th>
+                    <th class="text-right">Projected</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of ledgerImpact(); track row.accountCode) {
+                    <tr>
+                      <td>
+                        <div class="acct-cell">
+                          <span class="acct-code mono">{{ row.accountCode }}</span>
+                          <span class="acct-name">{{ row.accountName }}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          class="side-badge mono"
+                          [class.debit]="row.normalSide === 'DEBIT'"
+                          [class.credit]="row.normalSide === 'CREDIT'"
+                        >
+                          {{ row.normalSide }}
+                        </span>
+                      </td>
+                      <td class="text-right mono">
+                        {{ row.loading ? '…' : (row.currentBalance | number: '1.2-2') }}
+                      </td>
+                      <td class="text-right mono">
+                        {{ row.debitDelta > 0 ? ('+' + (row.debitDelta | number: '1.2-2')) : '—' }}
+                      </td>
+                      <td class="text-right mono">
+                        {{ row.creditDelta > 0 ? ('+' + (row.creditDelta | number: '1.2-2')) : '—' }}
+                      </td>
+                      <td class="text-right mono">
+                        <strong
+                          [class.delta-up]="row.netChange > 0"
+                          [class.delta-down]="row.netChange < 0"
+                        >
+                          {{ row.loading ? '…' : (row.projectedBalance | number: '1.2-2') }}
+                        </strong>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+        @if (isSelectedPeriodClosedOrLocked()) {
+          <div class="alert-warn">
+            Period <strong>{{ selectedPeriod()?.id }}</strong> is currently
+            <strong>{{ selectedPeriod()?.status }}</strong>. Select an <code>OPEN</code> period before posting.
+          </div>
+        }
+
+        <div class="footer-actions">
+          <button
+            type="button"
+            class="secondary-btn"
+            [disabled]="savingTemplate()"
+            (click)="saveCurrentAsTemplate()"
+          >
+            {{ savingTemplate() ? 'Saving...' : 'Save Current as Template' }}
+          </button>
+
+          <button
+            type="button"
+            class="primary-btn"
+            [disabled]="submitting() || isSelectedPeriodClosedOrLocked() || !isBalanced()"
+            (click)="postEntry()"
+          >
+            {{ submitting() ? 'Posting Entry...' : 'Post Journal Entry' }}
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+</section>

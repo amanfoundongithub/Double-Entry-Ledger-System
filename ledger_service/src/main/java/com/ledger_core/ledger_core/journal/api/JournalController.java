@@ -75,4 +75,12 @@ public class JournalController {
     public ResponseEntity<List<JournalEntryResponse>> listByAccount(@RequestParam String accountId) {
         return ResponseEntity.ok(postingService.listByAccount(accountId));
     }
+
+    @GetMapping("/recent")
+public ResponseEntity<List<JournalEntryResponse>> listRecent(
+        @RequestParam(defaultValue = "25") int limit
+) {
+    int safeLimit = Math.min(Math.max(limit, 1), 100);
+    return ResponseEntity.ok(postingService.listRecent(safeLimit));
+}
 }
