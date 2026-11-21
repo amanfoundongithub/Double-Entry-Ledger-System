@@ -118,6 +118,49 @@
         </div>
       </div>
 
+      <div class="schedule-builder-box">
+        <div class="meta-grid schedule-grid">
+          <div class="field">
+            <label for="new-sched-freq">Recurring Schedule</label>
+            <select id="new-sched-freq" [(ngModel)]="newScheduleFrequency">
+              @for (freq of scheduleFrequencies; track freq) {
+                <option [value]="freq">{{ freq }}</option>
+              }
+            </select>
+          </div>
+
+          @if (newScheduleFrequency !== 'NONE') {
+            <div class="field">
+              <label for="new-sched-interval">Interval</label>
+              <input
+                id="new-sched-interval"
+                type="number"
+                class="mono"
+                min="1"
+                step="1"
+                [(ngModel)]="newScheduleInterval"
+              />
+            </div>
+
+            <div class="field">
+              <label for="new-sched-next">Next Run Date *</label>
+              <input
+                id="new-sched-next"
+                type="date"
+                [(ngModel)]="newScheduleNextRunDate"
+              />
+            </div>
+
+            <div class="field field-wide">
+              <label class="checkbox-inline">
+                <input type="checkbox" [(ngModel)]="newScheduleAutoAdvance" />
+                <span>Auto-advance next run date after posting</span>
+              </label>
+            </div>
+          }
+        </div>
+      </div>
+
       <div class="builder-lines-head">
         <h4>Template Lines</h4>
         <button type="button" class="ghost-btn" (click)="addNewTemplateLine()">+ Add Line</button>
@@ -252,7 +295,19 @@
     <aside class="tpl-sidebar card">
       <div class="sidebar-head">
         <h3>Available Templates</h3>
-        <span class="count-badge">{{ filteredTemplates().length }}</span>
+        <div class="sidebar-head-right">
+          @if (dueTemplatesCount() > 0) {
+            <button
+              type="button"
+              class="due-filter-btn"
+              [class.active]="dueOnly()"
+              (click)="dueOnly.set(!dueOnly())"
+            >
+              Due ({{ dueTemplatesCount() }})
+            </button>
+          }
+          <span class="count-badge">{{ filteredTemplates().length }}</span>
+        </div>
       </div>
 
       <div class="search-box">
@@ -286,12 +341,21 @@
           >
             <div class="tpl-card-top">
               <span class="tpl-name">{{ tpl.name }}</span>
-              <span class="cat-badge" [attr.data-cat]="tpl.category">{{ tpl.category }}</span>
+              <div class="tpl-card-badges">
+                @if (isTemplateDue(tpl)) {
+                  <span class="due-badge">DUE</span>
+                }
+                <span class="cat-badge" [attr.data-cat]="tpl.category">{{ tpl.category }}</span>
+              </div>
             </div>
             <p class="tpl-desc">{{ tpl.description }}</p>
             <div class="tpl-card-meta mono">
               <span>{{ tpl.code }}</span>
-              <span>{{ tpl.lines.length }} legs</span>
+              @if (tpl.schedule?.frequency && tpl.schedule?.frequency !== 'NONE') {
+                <span>{{ tpl.schedule?.frequency }} · {{ tpl.schedule?.nextRunDate }}</span>
+              } @else {
+                <span>{{ tpl.lines.length }} legs</span>
+              }
             </div>
           </button>
         } @empty {
@@ -356,6 +420,25 @@
             </span>
           </div>
         </div>
+
+        @if (tpl.schedule?.frequency && tpl.schedule?.frequency !== 'NONE') {
+          <div class="schedule-banner" [class.is-due]="isTemplateDue(tpl)">
+            <div class="schedule-banner-info mono">
+              <span>Schedule: <strong>{{ tpl.schedule?.frequency }}</strong> (every {{ tpl.schedule?.interval || 1 }})</span>
+              <span>Next Run: <strong>{{ tpl.schedule?.nextRunDate }}</strong></span>
+              @if (isTemplateDue(tpl)) {
+                <span class="due-badge">DUE FOR POSTING</span>
+              }
+            </div>
+            <button
+              type="button"
+              class="ghost-btn"
+              (click)="advanceSelectedTemplateSchedule()"
+            >
+              Advance Date
+            </button>
+          </div>
+        }
 
         <div class="meta-grid">
           <div class="field">

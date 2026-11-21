@@ -198,6 +198,18 @@ export class LedgerApiService {
     );
   }
 
+  advanceTemplateSchedule(templateId: string): Observable<TemplateResponse> {
+  return this.http
+    .post<TemplateResponse>(`${this.baseUrl}/templates/${encodeURIComponent(templateId)}/advance-schedule`, {})
+    .pipe(
+      tap((updated) => {
+        this.templates.update((prev) =>
+          prev.map((t) => (t.id === updated.id ? updated : t))
+        );
+      })
+    );
+}
+
   private syncPeriod(updated: PeriodResponse): void {
     this.periods.update((list) => list.map((p) => (p.id === updated.id ? updated : p)));
   }

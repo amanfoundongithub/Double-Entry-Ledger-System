@@ -4,6 +4,7 @@ export type CashFlowCategory = 'OPERATING' | 'INVESTING' | 'FINANCING' | 'NONE';
 export type EntryStatus = 'POSTED' | 'REVERSED';
 export type PeriodStatus = 'OPEN' | 'CLOSED' | 'LOCKED';
 export type TemplateAllocationType = 'FIXED' | 'PERCENT' | 'BALANCING';
+export type ScheduleFrequency = 'NONE' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
 
 export interface Account {
   id: string;
@@ -273,6 +274,7 @@ export interface TemplateResponse {
   category: TemplateCategory;
   systemPreset: boolean;
   lines: TemplateLineDef[];
+  schedule?: TemplateScheduleDef | null;
   createdAt: string;
 }
 
@@ -284,6 +286,7 @@ export interface CreateTemplateRequest {
   referencePrefix?: string;
   category: TemplateCategory;
   lines: TemplateLineDef[];
+  schedule?: TemplateScheduleDef | null;
 }
 
 export interface LedgerImpactRow {
@@ -297,4 +300,11 @@ export interface LedgerImpactRow {
   netChange: number;
   projectedBalance: number;
   loading: boolean;
+}
+
+export interface TemplateScheduleDef {
+  frequency: ScheduleFrequency;
+  interval?: number | null; // default 1
+  nextRunDate?: string | null; // YYYY-MM-DD
+  autoAdvanceOnPost?: boolean; // default true
 }

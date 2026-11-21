@@ -1,6 +1,8 @@
 package com.ledger_core.ledger_core.templates.api;
 
+import com.ledger_core.ledger_core.templates.api.CreateTemplateRequest.TemplateScheduleDto;
 import com.ledger_core.ledger_core.templates.domain.JournalEntryTemplate;
+import com.ledger_core.ledger_core.templates.domain.JournalEntryTemplate.TemplateSchedule;
 import com.ledger_core.ledger_core.templates.domain.TemplateCategory;
 import com.ledger_core.ledger_core.templates.domain.TemplateLineDef;
 import java.time.Instant;
@@ -16,9 +18,18 @@ public record TemplateResponse(
     TemplateCategory category,
     boolean systemPreset,
     List<TemplateLineDef> lines,
+    TemplateScheduleDto schedule,
     Instant createdAt
 ) {
     public static TemplateResponse fromDomain(JournalEntryTemplate t) {
+        TemplateSchedule s = t.resolvedSchedule();
+        TemplateScheduleDto scheduleDto = new TemplateScheduleDto(
+            s.resolvedFrequency(),
+            s.resolvedInterval(),
+            s.nextRunDate(),
+            s.resolvedAutoAdvance()
+        );
+
         return new TemplateResponse(
             t.id(),
             t.code(),
@@ -29,6 +40,7 @@ public record TemplateResponse(
             t.category(),
             t.systemPreset(),
             t.lines(),
+            scheduleDto,
             t.createdAt()
         );
     }

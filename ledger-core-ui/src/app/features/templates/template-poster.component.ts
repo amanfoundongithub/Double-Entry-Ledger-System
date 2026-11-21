@@ -11,6 +11,7 @@ import {
   PeriodResponse,
   PostJournalEntryRequest,
   PostJournalLineRequest,
+  ScheduleFrequency,
   TemplateAllocationType,
   TemplateCategory,
   TemplateLineDef,
@@ -80,6 +81,7 @@ export class TemplatePosterComponent implements OnInit {
   ];
 
   readonly allocationTypes: TemplateAllocationType[] = ['FIXED', 'PERCENT', 'BALANCING'];
+  readonly scheduleFrequencies: ScheduleFrequency[] = ['NONE', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY'];
 
   readonly availableTemplates = this.api.templates;
   readonly accounts = this.api.accounts;
@@ -89,6 +91,7 @@ export class TemplatePosterComponent implements OnInit {
 
   readonly selectedCategory = signal<'ALL' | TemplateCategory>('ALL');
   readonly searchQuery = signal<string>('');
+  readonly dueOnly = signal<boolean>(false);
   readonly currentPage = signal<number>(1);
   readonly selectedTemplate = signal<TemplateResponse | null>(null);
   readonly showCreateForm = signal<boolean>(false);
@@ -117,15 +120,29 @@ export class TemplatePosterComponent implements OnInit {
   newCategory: TemplateCategory = 'EXPENSE';
   newLines: NewTemplateLineForm[] = [];
 
+  // Create template schedule state
+  newScheduleFrequency: ScheduleFrequency = 'NONE';
+  newScheduleInterval = 1;
+  newScheduleNextRunDate = '2026-12-01';
+  newScheduleAutoAdvance = true;
+
   readonly hasPercentLegs = computed(() =>
     this.draftLines().some((l) => l.amountType === 'PERCENT')
+  );
+
+  readonly dueTemplatesCount = computed(() =>
+    this.availableTemplates().filter((tpl) => this.isTemplateDue(tpl)).length
   );
 
   readonly filteredTemplates = computed(() => {
     const cat = this.selectedCategory();
     const q = this.searchQuery().trim().toLowerCase();
+    const onlyDue = this.dueOnly();
 
     return this.availableTemplates().filter((tpl) => {
+      if (onlyDue && !this.isTemplateDue(tpl)) {
+        return false;
+      }
       if (cat !== 'ALL' && tpl.category !== cat) {
         return false;
       }
@@ -252,6 +269,7 @@ export class TemplatePosterComponent implements OnInit {
     effect(() => {
       this.selectedCategory();
       this.searchQuery();
+      this.dueOnly();
       this.currentPage.set(1);
     });
   }
@@ -291,10 +309,19 @@ export class TemplatePosterComponent implements OnInit {
 
   loadRecentEntries(): void {
     this.api.loadJournalEntries().subscribe({
-      error: () => {
-        // Non-blocking if journal list isn't available yet
+      error: (err: HttpErrorResponse) => {
+        this.notifications.fromHttpError(err, 'Failed to Load Recent Entries');
       },
     });
+  }
+
+  isTemplateDue(tpl: TemplateResponse): boolean {
+    const s = tpl.schedule;
+    if (!s || !s.frequency || s.frequency === 'NONE' || !s.nextRunDate) {
+      return false;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    return s.nextRunDate <= today;
   }
 
   refreshAffectedAccountBalances(): void {
@@ -362,6 +389,11 @@ export class TemplatePosterComponent implements OnInit {
       ? `${entry.reference.replace(/\d+$/, '')}`
       : 'JE-2026-';
 
+    this.newScheduleFrequency = 'NONE';
+    this.newScheduleInterval = 1;
+    this.newScheduleNextRunDate = '2026-12-01';
+    this.newScheduleAutoAdvance = true;
+
     this.newLines = entry.lines.map((line, idx) => {
       const isDebit = (Number(line.debitAmount) || 0) > 0;
       const amt = isDebit ? Number(line.debitAmount) : Number(line.creditAmount) || 0;
@@ -408,6 +440,18 @@ export class TemplatePosterComponent implements OnInit {
     this.newDefaultDescription = tpl.defaultDescription;
     this.newReferencePrefix = tpl.referencePrefix || 'JE-2026-';
     this.newCategory = tpl.category;
+
+    if (tpl.schedule && tpl.schedule.frequency !== 'NONE') {
+      this.newScheduleFrequency = tpl.schedule.frequency;
+      this.newScheduleInterval = tpl.schedule.interval ?? 1;
+      this.newScheduleNextRunDate = tpl.schedule.nextRunDate ?? '2026-12-01';
+      this.newScheduleAutoAdvance = tpl.schedule.autoAdvanceOnPost ?? true;
+    } else {
+      this.newScheduleFrequency = 'NONE';
+      this.newScheduleInterval = 1;
+      this.newScheduleNextRunDate = '2026-12-01';
+      this.newScheduleAutoAdvance = true;
+    }
 
     this.newLines = tpl.lines.map((line) => {
       const allocType = this.resolveLineAllocationType(line);
@@ -463,6 +507,7 @@ export class TemplatePosterComponent implements OnInit {
   clearFilters(): void {
     this.searchQuery.set('');
     this.selectedCategory.set('ALL');
+    this.dueOnly.set(false);
     this.currentPage.set(1);
   }
 
@@ -489,6 +534,10 @@ export class TemplatePosterComponent implements OnInit {
     this.newDefaultDescription = '';
     this.newReferencePrefix = 'JE-2026-';
     this.newCategory = 'EXPENSE';
+    this.newScheduleFrequency = 'NONE';
+    this.newScheduleInterval = 1;
+    this.newScheduleNextRunDate = '2026-12-01';
+    this.newScheduleAutoAdvance = true;
     this.newLines = [
       {
         accountCode: firstAcc?.code || '5010',
@@ -566,6 +615,11 @@ export class TemplatePosterComponent implements OnInit {
       return;
     }
 
+    if (this.newScheduleFrequency !== 'NONE' && !this.newScheduleNextRunDate) {
+      this.notifications.error('Schedule Date Required', 'Specify the next run date for this recurring schedule.');
+      return;
+    }
+
     for (const l of this.newLines) {
       if (l.amountType === 'PERCENT' && (!l.allocationPercent || l.allocationPercent <= 0)) {
         this.notifications.error(
@@ -600,6 +654,15 @@ export class TemplatePosterComponent implements OnInit {
       referencePrefix: this.newReferencePrefix.trim() || 'JE-',
       category: this.newCategory,
       lines,
+      schedule:
+        this.newScheduleFrequency === 'NONE'
+          ? null
+          : {
+              frequency: this.newScheduleFrequency,
+              interval: Math.max(1, Number(this.newScheduleInterval) || 1),
+              nextRunDate: this.newScheduleNextRunDate,
+              autoAdvanceOnPost: this.newScheduleAutoAdvance,
+            },
     };
 
     this.savingTemplate.set(true);
@@ -622,6 +685,10 @@ export class TemplatePosterComponent implements OnInit {
     this.selectedTemplate.set(tpl);
     this.regenerateReference(tpl);
     this.description = tpl.defaultDescription;
+
+    if (tpl.schedule?.nextRunDate) {
+      this.postingDate = tpl.schedule.nextRunDate;
+    }
 
     const mapped: DraftTemplateLine[] = tpl.lines.map((line) => {
       const matchedAcc = this.accounts().find((a) => a.code === line.accountCode);
@@ -730,6 +797,7 @@ export class TemplatePosterComponent implements OnInit {
         amountType: line.amountType,
         allocationPercent: line.amountType === 'PERCENT' ? line.allocationPercent : null,
       })),
+      schedule: tpl.schedule ?? null,
     };
 
     this.savingTemplate.set(true);
@@ -794,6 +862,26 @@ export class TemplatePosterComponent implements OnInit {
         this.regenerateReference(tpl);
         this.loadRecentEntries();
         this.refreshAffectedAccountBalances();
+
+        // Advance schedule if configured
+        if (
+          tpl.schedule &&
+          tpl.schedule.frequency !== 'NONE' &&
+          tpl.schedule.autoAdvanceOnPost !== false
+        ) {
+          this.api.advanceTemplateSchedule(tpl.id).subscribe({
+            next: (updated) => {
+              this.selectedTemplate.set(updated);
+              if (updated.schedule?.nextRunDate) {
+                this.postingDate = updated.schedule.nextRunDate;
+              }
+              this.notifications.success(
+                'Schedule Advanced',
+                `Next run date for ${updated.code} is now ${updated.schedule?.nextRunDate}`
+              );
+            },
+          });
+        }
       },
       error: (err: HttpErrorResponse) => {
         this.submitting.set(false);
@@ -801,4 +889,27 @@ export class TemplatePosterComponent implements OnInit {
       },
     });
   }
+
+  advanceSelectedTemplateSchedule(): void {
+  const tpl = this.selectedTemplate();
+  if (!tpl) {
+    return;
+  }
+
+  this.api.advanceTemplateSchedule(tpl.id).subscribe({
+    next: (updatedTpl) => {
+      this.selectedTemplate.set(updatedTpl);
+      if (updatedTpl.schedule?.nextRunDate) {
+        this.postingDate = updatedTpl.schedule.nextRunDate;
+      }
+      this.notifications.success(
+        'Schedule Advanced',
+        `Next run date: ${updatedTpl.schedule?.nextRunDate ?? 'updated'}`
+      );
+    },
+    error: (err: HttpErrorResponse) => {
+      this.notifications.fromHttpError(err, 'Advance Schedule Failed');
+    },
+  });
+}
 }

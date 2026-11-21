@@ -49,4 +49,9 @@ public class JournalEntryTemplateController {
     public void deleteTemplate(@PathVariable String id) {
         templateService.deleteTemplate(id);
     }
+
+    @PostMapping("/{id}/advance-schedule")
+    public TemplateResponse advanceSchedule(@PathVariable String id) {
+        return templateService.advanceSchedule(id);
+    }
 }
